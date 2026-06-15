@@ -7,3 +7,8 @@
 *.tar.xz.sha256
 
 # Temp files
+o
+openrc/o
+
+# Claude session files
+**/.claude/
