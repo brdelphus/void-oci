@@ -162,7 +162,7 @@ xchroot "xbps-install -Syu xbps"
 xchroot "xbps-install -Syu"
 
 # ─── Step 6: Package installation ─────────────────────────────────────────────
-COMMON_PKGS="base-minimal dracut openssh dhcpcd iproute2 grub python3 python3-pip python3-setuptools libcap-devel meson ninja pkg-config gcc make git curl wget ca-certificates e2fsprogs parted chrony kbd"
+COMMON_PKGS="base-minimal dracut openssh dhcpcd iproute2 grub python3 python3-pip python3-setuptools libcap-devel meson ninja pkg-config gcc make git curl wget ca-certificates e2fsprogs parted chrony kbd logrotate"
 
 if [ "$ARCH" = "x86_64" ]; then
     ARCH_PKGS="linux6.12 linux6.18 linux-firmware-amd linux-firmware-intel grub-x86_64-efi"
@@ -274,8 +274,10 @@ chmod 644 "$ROOTFS/etc/cloud/cloud.cfg"
 
 # void user
 xchroot "useradd -m -u 1000 -G wheel,adm -s /bin/bash void 2>/dev/null || true"
-xchroot "echo 'void:voidlinux' | chpasswd"
-xchroot "echo 'root:voidlinux' | chpasswd"
+# chpasswd can silently fail in a minimal chroot; write the hash directly instead
+VOIDHASH=$(openssl passwd -6 "voidlinux")
+sed -i "s|^void:[^:]*:|void:${VOIDHASH}:|" "$ROOTFS/etc/shadow"
+sed -i "s|^root:[^:]*:|root:${VOIDHASH}:|" "$ROOTFS/etc/shadow"
 
 # ─── Step 10: GRUB installation ───────────────────────────────────────────────
 echo "==> Installing GRUB"

@@ -94,6 +94,35 @@ Output images are ~2GB. Build takes 15–25 min per arch (dominated by package
 download + OpenRC compile). The rootfs tarballs are cached locally after the
 first download.
 
+## Local QEMU testing
+
+The images use GRUB-EFI (GPT disk, no BIOS boot partition). Boot with OVMF:
+
+```sh
+# Install OVMF once (Void: xbps-install edk2-ovmf)
+cp /usr/share/edk2/x64/OVMF_VARS.fd /tmp/ovmf-vars.fd
+
+qemu-system-x86_64 \
+    -enable-kvm -cpu host -m 2G \
+    -drive if=pflash,format=raw,unit=0,file=/usr/share/edk2/x64/OVMF_CODE.4m.fd,readonly=on \
+    -drive if=pflash,format=raw,unit=1,file=/tmp/ovmf-vars.fd \
+    -drive file=void-oracle-x86_64.qcow2,if=virtio,format=qcow2 \
+    -netdev user,id=net0,hostfwd=tcp::2223-:22 \
+    -device virtio-net-pci,netdev=net0 \
+    -serial file:/tmp/void-qemu.serial \
+    -display none &
+
+# Wait for boot, then SSH (password: voidlinux)
+ssh -o StrictHostKeyChecking=no -p 2223 void@localhost
+
+# Install k3s (runs on first attempt)
+curl -sfL https://get.k3s.io | sudo sh -
+sudo k3s kubectl get nodes
+```
+
+Note: add `cloud-init=disabled` to the GRUB cmdline for local tests — without an
+IMDS endpoint the Oracle datasource hangs, delaying boot indefinitely.
+
 ## What gets built
 
 | Component | Detail |
