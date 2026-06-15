@@ -1,0 +1,3 @@
+#!/bin/sh
+# Called when the openrc runit service exits or is stopped
+openrc shutdown 2>/dev/null || true

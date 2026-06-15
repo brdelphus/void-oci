@@ -315,6 +315,13 @@ done
 # default: sshd
 ln -sf "/etc/init.d/sshd" "$ROOTFS/etc/runlevels/default/sshd"
 
+# Runit service that drives OpenRC — this is what actually invokes OpenRC at boot
+# Void's runit stage 2 runs runsvdir /var/service; we put openrc there
+mkdir -p "$ROOTFS/etc/sv/openrc" "$ROOTFS/var/service"
+install -m 755 "$VOID_OCI_DIR/files/sv-openrc-run"    "$ROOTFS/etc/sv/openrc/run"
+install -m 755 "$VOID_OCI_DIR/files/sv-openrc-finish" "$ROOTFS/etc/sv/openrc/finish"
+ln -sf /etc/sv/openrc "$ROOTFS/var/service/openrc"
+
 # ─── Step 13: Image sealing ───────────────────────────────────────────────────
 echo "==> Sealing image"
 echo "" > "$ROOTFS/etc/machine-id"

@@ -1,0 +1,10 @@
+#!/bin/sh
+# Runit service: drives OpenRC runlevels on boot
+exec 2>&1
+
+openrc sysinit
+openrc boot
+openrc default
+
+# Stay alive — runit restarts a service that exits
+exec sleep infinity
