@@ -12,11 +12,40 @@ conflicts with containerd's resource isolation. Void solves this cleanly:
 - **No systemd** — runit as PID 1 stays out of cgroup management entirely
 - **cgroup v2 unified hierarchy** (`cgroup_no_v1=all`) — required by containerd;
   eliminates the v1/v2 hybrid that breaks k3s on most cloud images
-- **OpenRC layered on top of runit** — Void boots via runit natively; OpenRC is
-  added solely to give k3s a proper `rc-service` / `rc-update` interface without
-  replacing the init system
+- **OpenRC as the service manager** — both cloud-init and k3s expect an
+  OpenRC/SysV-compatible service interface (`rc-service`, `rc-update`, init
+  scripts in `/etc/init.d/`). This image runs OpenRC for all service management;
+  runit is kept as PID 1 purely for its boot stage handling and process
+  supervision, but it supervises only one thing: the OpenRC service itself
 - **Reproducible image** — OCI requires uploading a custom image; without a build
   script, every new cluster node would need manual setup
+
+## Init architecture
+
+runit is Void's native PID 1 but in these images it acts purely as a bootloader:
+
+```
+runit (PID 1)
+  stage 1 — mounts /proc, /sys, sets up the environment
+  stage 2 — runsvdir /var/service/
+               └─ openrc (only runit-supervised service)
+                    ├─ openrc sysinit  →  devfs, dmesg, sysfs
+                    ├─ openrc boot     →  dhcpcd, cloud-init chain, chronyd
+                    └─ openrc default  →  sshd, k3s (when installed)
+  stage 3 — openrc shutdown → system halt
+```
+
+**runit does not manage any application services directly.** It hands off to
+OpenRC as soon as stage 2 starts. All services — networking, cloud-init,
+SSH, NTP, and k3s — are OpenRC services managed with the standard
+`rc-service` / `rc-update` commands.
+
+This matters because:
+- cloud-init's OpenRC init scripts call `rc-service` to start/stop services
+  during provisioning; they expect OpenRC, not runit's `sv` command
+- k3s ships an OpenRC init script and registers itself with `rc-update`; on a
+  pure runit system this would silently do nothing
+- operators familiar with Alpine or Gentoo can manage services the same way
 
 Generates bootable images for x86_64 and aarch64 with:
 - Void Linux (runit as PID 1) + OpenRC layered on top
