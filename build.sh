@@ -162,7 +162,7 @@ xchroot "xbps-install -Syu xbps"
 xchroot "xbps-install -Syu"
 
 # ─── Step 6: Package installation ─────────────────────────────────────────────
-COMMON_PKGS="base-minimal dracut openssh dhcpcd iproute2 grub python3 python3-pip python3-setuptools libcap-devel meson ninja pkg-config gcc make git curl wget"
+COMMON_PKGS="base-minimal dracut openssh dhcpcd iproute2 grub python3 python3-pip python3-setuptools libcap-devel meson ninja pkg-config gcc make git curl wget ca-certificates e2fsprogs parted chrony kbd"
 
 if [ "$ARCH" = "x86_64" ]; then
     ARCH_PKGS="linux6.12 linux6.18 linux-firmware-amd linux-firmware-intel grub-x86_64-efi"
