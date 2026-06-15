@@ -40,14 +40,30 @@ qemu-aarch64-static    # Void: xbps-install qemu-user-static
 ## Usage
 
 ```sh
-sudo ./build.sh x86_64
-sudo ./build.sh aarch64
+sudo ./build.sh [x86_64|aarch64] [oracle|aws|azure|gcp|auto]
 ```
 
-Output: `void-oci-x86_64.qcow2` / `void-oci-aarch64.qcow2` (~2GB)
+The second argument selects the cloud target (default: `oracle`):
 
-Build takes 15–25 min per arch (dominated by package download + OpenRC compile).
-The rootfs tarballs are cached locally after the first download.
+| Target | cloud-init datasource |
+|---|---|
+| `oracle` | Oracle |
+| `aws` | Ec2 |
+| `azure` | Azure |
+| `gcp` | GCE |
+| `auto` | Oracle, Ec2, Azure, GCE (auto-detect) |
+
+Examples:
+```sh
+sudo ./build.sh x86_64 oracle    # → void-oracle-x86_64.qcow2
+sudo ./build.sh x86_64 aws       # → void-aws-x86_64.qcow2
+sudo ./build.sh aarch64 gcp      # → void-gcp-aarch64.qcow2
+sudo ./build.sh x86_64 auto      # → void-auto-x86_64.qcow2 (any cloud)
+```
+
+Output images are ~2GB. Build takes 15–25 min per arch (dominated by package
+download + OpenRC compile). The rootfs tarballs are cached locally after the
+first download.
 
 ## What gets built
 

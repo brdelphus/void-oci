@@ -1,13 +1,13 @@
 #!/bin/bash
-# build.sh — reproducible Void Linux OCI QCOW2 image builder
-# Usage: sudo ./build.sh [x86_64|aarch64]
-# Requires: qemu-img qemu-nbd sgdisk partx mkfs.vfat mkfs.ext4 blkid curl tar
+# build.sh — reproducible Void Linux cloud QCOW2 image builder
+# Usage: sudo ./build.sh [x86_64|aarch64] [oracle|aws|azure|gcp|auto]
+# Requires: qemu-img qemu-nbd parted partx mkfs.vfat mkfs.ext4 blkid curl tar
 #           meson ninja gcc (for OpenRC compile inside chroot)
 #           For aarch64: qemu-aarch64-static (qemu-user-static package)
 set -euo pipefail
 
 # ─── Global build lock (prevent concurrent runs) ──────────────────────────────
-LOCKFILE="/tmp/void-oci-build-${1:-x86_64}.lock"
+LOCKFILE="/tmp/void-oci-build-${1:-x86_64}-${2:-oracle}.lock"
 if ! mkdir "$LOCKFILE" 2>/dev/null; then
     echo "ERROR: Another build is already running (lock: $LOCKFILE). PID $(cat "$LOCKFILE/pid" 2>/dev/null)"
     exit 1
@@ -15,11 +15,12 @@ fi
 echo $$ > "$LOCKFILE/pid"
 # ─── Configuration ────────────────────────────────────────────────────────────
 ARCH="${1:-x86_64}"
+CLOUD="${2:-oracle}"
 VOID_DATE="20250202"
 IMAGE_SIZE="8G"
-OPENRC_SRC="$VOID_OCI_DIR/openrc"
 VOID_OCI_DIR="$(cd "$(dirname "$0")" && pwd)"
-OUTPUT="$VOID_OCI_DIR/void-oci-${ARCH}.qcow2"
+OPENRC_SRC="$VOID_OCI_DIR/openrc"
+OUTPUT="$VOID_OCI_DIR/void-${CLOUD}-${ARCH}.qcow2"
 CLOUDINIT_TAG="26.1"
 ROOTFS="$(mktemp -d /tmp/void-oci-rootfs.XXXXXX)"
 
@@ -29,6 +30,15 @@ ROOTFS="$(mktemp -d /tmp/void-oci-rootfs.XXXXXX)"
 case "$ARCH" in
     x86_64|aarch64) ;;
     *) echo "ERROR: ARCH must be x86_64 or aarch64"; exit 1 ;;
+esac
+
+case "$CLOUD" in
+    oracle) DATASOURCE="Oracle" ;;
+    aws)    DATASOURCE="Ec2" ;;
+    azure)  DATASOURCE="Azure" ;;
+    gcp)    DATASOURCE="GCE" ;;
+    auto)   DATASOURCE="Oracle, Ec2, Azure, GCE" ;;
+    *) echo "ERROR: CLOUD must be oracle, aws, azure, gcp, or auto"; exit 1 ;;
 esac
 
 for cmd in qemu-img qemu-nbd parted partx mkfs.vfat mkfs.ext4 blkid curl tar meson ninja; do
@@ -69,7 +79,7 @@ for i in $(seq 0 15); do
 done
 [ -n "$NBD" ] || { echo "ERROR: no free nbd device"; exit 1; }
 
-echo "==> Building void-oci-${ARCH}.qcow2 -> $OUTPUT"
+echo "==> Building void-${CLOUD}-${ARCH}.qcow2 -> $OUTPUT"
 echo "==> NBD device: $NBD, rootfs: $ROOTFS"
 
 # ─── Step 1: Create and partition image ───────────────────────────────────────
@@ -254,9 +264,11 @@ install -m 440 "$VOID_OCI_DIR/files/sudoers-void" "$ROOTFS/etc/sudoers.d/void"
 # dhcpcd init script
 install -m 755 "$VOID_OCI_DIR/files/dhcpcd" "$ROOTFS/etc/init.d/dhcpcd"
 
-# cloud-init config
+# cloud-init config — inject datasource for target cloud
 mkdir -p "$ROOTFS/etc/cloud"
-install -m 644 "$VOID_OCI_DIR/files/cloud.cfg" "$ROOTFS/etc/cloud/cloud.cfg"
+sed "s|@@DATASOURCE@@|$DATASOURCE|g" "$VOID_OCI_DIR/files/cloud.cfg" \
+    > "$ROOTFS/etc/cloud/cloud.cfg"
+chmod 644 "$ROOTFS/etc/cloud/cloud.cfg"
 
 # void user
 xchroot "useradd -m -u 1000 -G wheel,adm -s /bin/bash void 2>/dev/null || true"
