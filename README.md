@@ -96,10 +96,24 @@ first download.
 
 ## Local QEMU testing
 
-The images use GRUB-EFI (GPT disk, no BIOS boot partition). Boot with OVMF:
+The images use GRUB-EFI (GPT disk, no BIOS boot partition). SeaBIOS cannot boot
+them — OVMF is required (`xbps-install edk2-ovmf`).
+
+**Prerequisite: disable cloud-init** — without an IMDS endpoint at 169.254.169.254
+the Oracle datasource hangs during the boot runlevel, so sshd never starts. Add
+`cloud-init=disabled` to the GRUB cmdline before booting:
 
 ```sh
-# Install OVMF once (Void: xbps-install edk2-ovmf)
+sudo qemu-nbd --connect=/dev/nbd0 void-oracle-x86_64.qcow2
+sudo partx -u /dev/nbd0
+sudo mount /dev/nbd0p2 /mnt
+sudo sed -i 's| console=tty0| cloud-init=disabled console=tty0|g' /mnt/boot/grub/grub.cfg
+sudo umount /mnt && sudo qemu-nbd --disconnect /dev/nbd0
+```
+
+### x86_64
+
+```sh
 cp /usr/share/edk2/x64/OVMF_VARS.fd /tmp/ovmf-vars.fd
 
 qemu-system-x86_64 \
@@ -112,16 +126,51 @@ qemu-system-x86_64 \
     -serial file:/tmp/void-qemu.serial \
     -display none &
 
-# Wait for boot, then SSH (password: voidlinux)
-ssh -o StrictHostKeyChecking=no -p 2223 void@localhost
+ssh -o StrictHostKeyChecking=no -p 2223 void@localhost  # password: voidlinux
+```
 
-# Install k3s (runs on first attempt)
+Boots in ~20s with KVM. Serial output goes to `/tmp/void-qemu.serial`.
+
+### aarch64
+
+```sh
+cp /usr/share/edk2/aarch64/QEMU_VARS.fd /tmp/qemu-aarch64-vars.fd
+
+qemu-system-aarch64 \
+    -M virt -cpu cortex-a57 -m 2G \
+    -drive if=pflash,format=raw,unit=0,file=/usr/share/edk2/aarch64/QEMU_CODE.fd,readonly=on \
+    -drive if=pflash,format=raw,unit=1,file=/tmp/qemu-aarch64-vars.fd \
+    -drive file=void-oracle-aarch64.qcow2,if=virtio,format=qcow2 \
+    -netdev user,id=net0,hostfwd=tcp::2224-:22 \
+    -device virtio-net-pci,netdev=net0 \
+    -serial file:/tmp/void-qemu.serial \
+    -display none &
+
+ssh -o StrictHostKeyChecking=no -p 2224 void@localhost  # password: voidlinux
+```
+
+**No KVM** — aarch64 emulation on an x86 host is software-only. Expect ~2min to
+reach the login prompt. GRUB prints `serial port 'com0' isn't found` because
+`-M virt` uses a PL011 UART (`ttyAMA0`) rather than a 16550 COM port; this is
+harmless — the boot continues and the kernel still comes up.
+
+### Install k3s
+
+```sh
 curl -sfL https://get.k3s.io | sudo sh -
 sudo k3s kubectl get nodes
 ```
 
-Note: add `cloud-init=disabled` to the GRUB cmdline for local tests — without an
-IMDS endpoint the Oracle datasource hangs, delaying boot indefinitely.
+k3s detects OpenRC and installs its init script to `/etc/init.d/k3s`, enables it
+in the default runlevel, and starts it immediately. The node goes Ready within
+~15s on x86_64 (longer on emulated aarch64).
+
+### Verified
+
+| Arch | Kernel | k3s | containerd | Result |
+|---|---|---|---|---|
+| x86_64 | 6.18.35_1 | v1.35.5+k3s1 | 2.2.3-k3s1 | Ready |
+| aarch64 | 6.12.93_1 | v1.35.5+k3s1 | 2.2.3-k3s1 | Ready |
 
 ## What gets built
 
