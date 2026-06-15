@@ -105,7 +105,9 @@ first download.
 | Init | runit (PID 1) → OpenRC (services) |
 | Network | dhcpcd on eth0 |
 | Cloud init | cloud-init 26.1, Oracle datasource |
-| Default user | `void` (UID 1000, wheel, SSH keys via cloud-init) |
+| Default user | `void` (UID 1000, wheel) |
+| Passwords | `void` / `root` → `voidlinux` (change on first login) |
+| SSH | Password auth enabled; cloud-init injects your SSH key on first boot |
 
 ## Disk layout
 
