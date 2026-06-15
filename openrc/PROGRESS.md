@@ -348,9 +348,13 @@ OpenRC's (12.5KB, with `rc_cgroup_mode="unified"` active).
 - [x] k3s comes up cleanly (`kubectl get nodes` → Ready, v1.35.5+k3s1)
 - [x] Cilium/Flannel kernel prerequisites verified (all present)
 - [x] `clang 21`, `llvm21` (includes `llvm-objcopy`), `bpftool` installed
+- [x] Reproducible build script (`build.sh`) for x86_64 and aarch64 — see Step 8
+- [x] Multi-cloud support: oracle / aws / azure / gcp / auto
+- [x] QEMU boot test: both arches pass k3s Ready on first attempt — see Step 8
+- [x] Published at https://github.com/brdelphus/void-oci
 - [ ] Install CNI (Cilium or Flannel)
 - [ ] Test node joins (if expanding to multi-node)
-- [ ] Migrate network from `/etc/rc.local` to OpenRC (see TODO below)
+- [ ] Upload images to OCI Object Storage and import as Custom Image
 
 ---
 
@@ -539,6 +543,101 @@ Config at `/etc/dhcpcd.conf`: DHCP on `eth0` (IPv4 only), `net.ifnames=0` rename
 - [ ] Test image boot in QEMU before uploading to OCI
 - [ ] Upload to OCI Object Storage
 - [ ] Import as Custom Image in OCI Console (QCOW2 → paravirtualized)
+
+---
+
+---
+
+## Step 8 — Reproducible image builder + QEMU verification
+
+### Build script (`build.sh`)
+
+All image construction is now fully scripted in `void-oci/build.sh`. Replaces the
+previous manual approach (copying host OpenRC binaries, manual cloud-init install).
+The script builds OpenRC from source inside a chroot, installs cloud-init from
+GitHub, and seals the image in a single run.
+
+```sh
+sudo ./build.sh [x86_64|aarch64] [oracle|aws|azure|gcp|auto]
+# → void-oracle-x86_64.qcow2, void-oracle-aarch64.qcow2, etc.
+```
+
+Key architecture decisions carried into the build:
+
+- **runit supervises one thing**: a runit service (`/etc/sv/openrc`) that runs
+  `openrc sysinit && openrc boot && openrc default && sleep infinity`. Everything
+  else is OpenRC. runit is never replaced as PID 1.
+- **No `openrc default` conflict**: runlevels in the image are clean from the
+  start — no runit-managed services (dhcpcd etc.) in OpenRC's default runlevel.
+- **Custom OpenRC init scripts** for sshd and chrony — Void's packages only ship
+  runit service dirs (`/etc/sv/`), not OpenRC init scripts. Written from scratch
+  and installed to `/etc/init.d/`.
+- **Multi-cloud**: `build.sh` takes a cloud target; datasource injected into
+  `cloud.cfg` at build time via `@@DATASOURCE@@` placeholder.
+
+### Two bugs found and fixed during QEMU testing
+
+**1. `chpasswd` silently fails in minimal chroot**
+
+`echo 'void:voidlinux' | chpasswd` exited 0 but left the void user with a locked
+password (`!` in `/etc/shadow`). Root password was set correctly; void was not.
+Likely a PAM or shadow library issue inside the minimal Void chroot.
+
+Fix: replaced with `openssl passwd -6` + direct `sed` write to `/etc/shadow`:
+
+```sh
+VOIDHASH=$(openssl passwd -6 "voidlinux")
+sed -i "s|^void:[^:]*:|void:${VOIDHASH}:|" "$ROOTFS/etc/shadow"
+sed -i "s|^root:[^:]*:|root:${VOIDHASH}:|" "$ROOTFS/etc/shadow"
+```
+
+**2. k3s installer fails on first run — missing `/etc/logrotate.d`**
+
+k3s installer writes `/etc/logrotate.d/k3s` but the directory doesn't exist on a
+minimal Void install. Exit code 1 meant the installer didn't complete (service not
+started). Fix: added `logrotate` to `COMMON_PKGS` in `build.sh`.
+
+### QEMU boot test — both arches verified
+
+Images use GRUB-EFI (GPT, no BIOS boot partition) — **OVMF is required**
+(`xbps-install edk2-ovmf`). SeaBIOS cannot boot them.
+
+**x86_64** (`qemu-system-x86_64` + `-enable-kvm` + OVMF x64):
+- Boots in ~20s
+- GRUB serial output captured on `/dev/ttyS0` ✓
+- OpenRC sysinit → boot → default completes cleanly
+- sshd starts, password auth works
+
+**aarch64** (`qemu-system-aarch64 -M virt` + OVMF aarch64, no KVM — software emulation):
+- Boots in ~2min (software emulation on x86 host — no KVM acceleration)
+- GRUB prints `serial port 'com0' isn't found` — harmless; QEMU virt uses PL011
+  (`ttyAMA0`), not a 16550 COM port. Boot continues normally.
+- Same OpenRC chain completes; sshd starts
+
+**cloud-init must be disabled for local QEMU testing**: without an IMDS at
+`169.254.169.254`, the Oracle datasource hangs indefinitely in the boot runlevel,
+preventing sshd from ever starting. Add `cloud-init=disabled` to the GRUB cmdline
+in the image's `/boot/grub/grub.cfg` before booting locally.
+
+### k3s verified Ready on first attempt
+
+```
+# x86_64
+NAME       STATUS   ROLES           AGE   VERSION        KERNEL          CONTAINER-RUNTIME
+void-oci   Ready    control-plane   14s   v1.35.5+k3s1   6.18.35_1       containerd://2.2.3-k3s1
+
+# aarch64
+void-oci   Ready    control-plane   16s   v1.35.5+k3s1   6.12.93_1       containerd://2.2.3-k3s1
+```
+
+k3s auto-detects OpenRC (presence of `rc-service`), installs `/etc/init.d/k3s`,
+enables it in the default runlevel, and starts the service — all in one `sh -`
+run. No manual `rc-update` or `rc-service` needed.
+
+### Repository
+
+Sources published at **https://github.com/brdelphus/void-oci** (public).
+OpenRC source with Void patches lives under `openrc/` in that repo.
 
 ---
 
