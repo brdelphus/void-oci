@@ -261,8 +261,10 @@ install -m 600 "$VOID_OCI_DIR/files/sshd_config" "$ROOTFS/etc/ssh/sshd_config"
 mkdir -p "$ROOTFS/etc/sudoers.d"
 install -m 440 "$VOID_OCI_DIR/files/sudoers-void" "$ROOTFS/etc/sudoers.d/void"
 
-# dhcpcd init script
+# OpenRC init scripts for services not provided by Void packages
 install -m 755 "$VOID_OCI_DIR/files/dhcpcd" "$ROOTFS/etc/init.d/dhcpcd"
+install -m 755 "$VOID_OCI_DIR/files/sshd"   "$ROOTFS/etc/init.d/sshd"
+install -m 755 "$VOID_OCI_DIR/files/chrony"  "$ROOTFS/etc/init.d/chronyd"
 
 # cloud-init config — inject datasource for target cloud
 mkdir -p "$ROOTFS/etc/cloud"
@@ -305,8 +307,8 @@ for svc in devfs dmesg sysfs; do
 done
 rm -f "$ROOTFS/etc/runlevels/sysinit/cgroups"
 
-# boot: cloud-init chain + dhcpcd
-for svc in cloud-init-local dhcpcd cloud-init cloud-config cloud-final; do
+# boot: cloud-init chain + dhcpcd + chrony
+for svc in cloud-init-local dhcpcd cloud-init cloud-config cloud-final chronyd; do
     ln -sf "/etc/init.d/$svc" "$ROOTFS/etc/runlevels/boot/$svc"
 done
 

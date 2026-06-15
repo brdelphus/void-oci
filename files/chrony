@@ -1,0 +1,17 @@
+#!/sbin/openrc-run
+
+name="chronyd"
+description="Chrony NTP daemon"
+command="/usr/bin/chronyd"
+command_args="-u chrony"
+pidfile="/run/chrony/chronyd.pid"
+
+depend() {
+    need localmount
+    after dhcpcd net
+    use logger
+}
+
+start_pre() {
+    checkpath -d -m 0750 -o chrony:chrony /run/chrony
+}
