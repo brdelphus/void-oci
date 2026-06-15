@@ -1,0 +1,15 @@
+*.gz
+
+*.diff
+*.patch
+*.orig
+*.rej
+
+core
+.gdb_history
+.gdbinit
+
+build
+
+# IDE
+.idea

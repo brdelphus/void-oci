@@ -1,0 +1,25 @@
+#!/sbin/openrc-run
+
+description="dhcpcd network daemon"
+
+command="/sbin/dhcpcd"
+command_args="-b -q"
+pidfile="/run/dhcpcd/pid"
+
+depend() {
+    need localmount
+    after modules
+    provide net network-online
+}
+
+start() {
+    ebegin "Starting dhcpcd"
+    start-stop-daemon --start --exec "$command" -- $command_args
+    eend $?
+}
+
+stop() {
+    ebegin "Stopping dhcpcd"
+    start-stop-daemon --stop --exec "$command"
+    eend $?
+}

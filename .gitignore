@@ -1,0 +1,11 @@
+# Build outputs
+*.qcow2
+*.qcow2.bak
+
+# Downloaded rootfs tarballs
+*.tar.xz
+*.tar.xz.sha256
+
+# Temp files
+o
+openrc/o
