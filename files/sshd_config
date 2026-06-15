@@ -1,5 +1,5 @@
-PasswordAuthentication no
-PermitRootLogin no
+PasswordAuthentication yes
+PermitRootLogin yes
 AuthorizedKeysFile .ssh/authorized_keys
 ChallengeResponseAuthentication no
 UsePAM no

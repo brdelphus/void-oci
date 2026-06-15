@@ -274,8 +274,8 @@ chmod 644 "$ROOTFS/etc/cloud/cloud.cfg"
 
 # void user
 xchroot "useradd -m -u 1000 -G wheel,adm -s /bin/bash void 2>/dev/null || true"
-xchroot "passwd -l void"
-xchroot "passwd -l root"
+xchroot "echo 'void:voidlinux' | chpasswd"
+xchroot "echo 'root:voidlinux' | chpasswd"
 
 # ─── Step 10: GRUB installation ───────────────────────────────────────────────
 echo "==> Installing GRUB"
