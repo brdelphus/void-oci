@@ -1,9 +1,25 @@
 # void-oci
 
-Reproducible QCOW2 image builder for Void Linux OCI instances (Oracle Cloud).
+Reproducible QCOW2 image builder for Void Linux OCI instances (Oracle Cloud),
+purpose-built for running k3s clusters.
+
+## Why
+
+Oracle Cloud has no official Void Linux images. Running k3s on mainstream distro
+images (Ubuntu, Oracle Linux) means fighting systemd's cgroup management, which
+conflicts with containerd's resource isolation. Void solves this cleanly:
+
+- **No systemd** — runit as PID 1 stays out of cgroup management entirely
+- **cgroup v2 unified hierarchy** (`cgroup_no_v1=all`) — required by containerd;
+  eliminates the v1/v2 hybrid that breaks k3s on most cloud images
+- **OpenRC layered on top of runit** — Void boots via runit natively; OpenRC is
+  added solely to give k3s a proper `rc-service` / `rc-update` interface without
+  replacing the init system
+- **Reproducible image** — OCI requires uploading a custom image; without a build
+  script, every new cluster node would need manual setup
 
 Generates bootable images for x86_64 and aarch64 with:
-- Void Linux (runit as PID 1) + OpenRC layered on top (for k3s / service management)
+- Void Linux (runit as PID 1) + OpenRC layered on top
 - cgroup v2 unified hierarchy (`cgroup_no_v1=all`)
 - cloud-init 26.1 (Oracle datasource)
 - GRUB with serial console
