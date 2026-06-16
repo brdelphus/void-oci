@@ -30,8 +30,8 @@ runit (PID 1)
   stage 2 — runsvdir /var/service/
                └─ openrc (only runit-supervised service)
                     ├─ openrc sysinit  →  devfs, dmesg, sysfs
-                    ├─ openrc boot     →  dhcpcd, cloud-init chain, chronyd
-                    └─ openrc default  →  sshd, k3s (when installed)
+                    ├─ openrc boot     →  dhcpcd, cloud-init chain, chronyd, sshd
+                    └─ openrc default  →  rsyslogd, k3s (when installed)
   stage 3 — openrc shutdown → system halt
 ```
 
@@ -185,7 +185,7 @@ in the default runlevel, and starts it immediately. The node goes Ready within
 | Cloud init | cloud-init 26.1, Oracle datasource |
 | Default user | `void` (UID 1000, wheel) |
 | Passwords | `void` / `root` → `voidlinux` (change on first login) |
-| SSH | Password auth enabled; cloud-init injects your SSH key on first boot |
+| SSH | Password auth enabled; cloud-init injects your SSH key on first boot; sshd in boot runlevel (ready before cloud-init completes) |
 
 ## Disk layout
 
@@ -200,8 +200,13 @@ GPT, 8G image
 | Runlevel | Services |
 |---|---|
 | sysinit | devfs, dmesg, sysfs |
-| boot | cloud-init-local, cloud-init, cloud-config, cloud-final, dhcpcd |
-| default | sshd |
+| boot | cloud-init-local, dhcpcd, cloud-init, cloud-config, cloud-final, chronyd, **sshd** |
+| default | rsyslogd |
+
+sshd is in the boot runlevel (not default) so it becomes available as soon as
+networking is up, without waiting for the cloud-init chain to complete. On OCI,
+cloud-init-local can be slow on first boot (downloading instance metadata); if
+sshd were in default, SSH would be unreachable until cloud-init finished.
 
 No cgroups service in sysinit — runit mounts cgroup2 in stage 1.
 

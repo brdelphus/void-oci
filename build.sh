@@ -162,7 +162,7 @@ xchroot "xbps-install -Syu xbps"
 xchroot "xbps-install -Syu"
 
 # ─── Step 6: Package installation ─────────────────────────────────────────────
-COMMON_PKGS="base-minimal dracut openssh dhcpcd iproute2 grub python3 python3-pip python3-setuptools libcap-devel meson ninja pkg-config gcc make git curl wget ca-certificates e2fsprogs parted chrony kbd logrotate"
+COMMON_PKGS="base-minimal dracut openssh dhcpcd iproute2 grub python3 python3-pip python3-setuptools libcap-devel meson ninja pkg-config gcc make git curl wget ca-certificates e2fsprogs parted chrony kbd logrotate rsyslog cloud-utils"
 
 if [ "$ARCH" = "x86_64" ]; then
     ARCH_PKGS="linux6.12 linux6.18 linux-firmware-amd linux-firmware-intel grub-x86_64-efi"
@@ -244,8 +244,11 @@ EOF
 # hostname
 echo "void-oci" > "$ROOTFS/etc/hostname"
 
-# GRUB
+# GRUB — files/grub uses ttyS0; aarch64 (PL011 UART) needs ttyAMA0 instead
 install -m 644 "$VOID_OCI_DIR/files/grub" "$ROOTFS/etc/default/grub"
+if [ "$ARCH" = "aarch64" ]; then
+    sed -i 's/ttyS0/ttyAMA0/g' "$ROOTFS/etc/default/grub"
+fi
 
 # dracut — bake cgroup_no_v1=all into initramfs cmdline
 mkdir -p "$ROOTFS/etc/dracut.conf.d"
@@ -265,6 +268,7 @@ install -m 440 "$VOID_OCI_DIR/files/sudoers-void" "$ROOTFS/etc/sudoers.d/void"
 install -m 755 "$VOID_OCI_DIR/files/dhcpcd" "$ROOTFS/etc/init.d/dhcpcd"
 install -m 755 "$VOID_OCI_DIR/files/sshd"   "$ROOTFS/etc/init.d/sshd"
 install -m 755 "$VOID_OCI_DIR/files/chrony"  "$ROOTFS/etc/init.d/chronyd"
+install -m 644 "$VOID_OCI_DIR/files/chrony.conf" "$ROOTFS/etc/chrony.conf"
 
 # cloud-init config — inject datasource for target cloud
 mkdir -p "$ROOTFS/etc/cloud"
@@ -314,8 +318,21 @@ for svc in cloud-init-local dhcpcd cloud-init cloud-config cloud-final chronyd; 
     ln -sf "/etc/init.d/$svc" "$ROOTFS/etc/runlevels/boot/$svc"
 done
 
-# default: sshd
-ln -sf "/etc/init.d/sshd" "$ROOTFS/etc/runlevels/default/sshd"
+# boot: sshd — must be here, not default, so it starts independently of cloud-init.
+# If sshd is in default, the entire default runlevel waits for boot (cloud-init chain)
+# to finish. On OCI, cloud-init-local is slow on first boot so SSH would be unreachable
+# until cloud-init completes. Moving to boot lets sshd start as soon as dhcpcd is up.
+ln -sf "/etc/init.d/sshd" "$ROOTFS/etc/runlevels/boot/sshd"
+
+# default: rsyslog
+ln -sf "/etc/init.d/rsyslogd" "$ROOTFS/etc/runlevels/default/rsyslogd" 2>/dev/null || true
+
+# Serial console agetty — enables OCI "Launch serial console" browser terminal
+SERIAL_DEV=$( [ "$ARCH" = "aarch64" ] && echo "ttyAMA0" || echo "ttyS0" )
+if [ -d "$ROOTFS/etc/sv/agetty-${SERIAL_DEV}" ]; then
+    ln -sf "/etc/sv/agetty-${SERIAL_DEV}" \
+           "$ROOTFS/etc/runit/runsvdir/default/agetty-${SERIAL_DEV}"
+fi
 
 # Runit service that drives OpenRC — this is what actually invokes OpenRC at boot.
 # /var/service is a runtime symlink; the correct build-time location is
