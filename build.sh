@@ -23,6 +23,7 @@ OPENRC_SRC="$VOID_OCI_DIR/openrc"
 OUTPUT="$VOID_OCI_DIR/void-${CLOUD}-${ARCH}.qcow2"
 CLOUDINIT_TAG="26.1"
 ROOTFS="$(mktemp -d /tmp/void-oci-rootfs.XXXXXX)"
+OCI_BUCKET="${OCI_BUCKET:-void-images}"
 
 # ─── Validation ───────────────────────────────────────────────────────────────
 [ "$(id -u)" -eq 0 ] || { echo "ERROR: must run as root"; exit 1; }
@@ -390,3 +391,56 @@ qemu-nbd --disconnect "$NBD"
 NBD=""
 
 echo "==> Done: $OUTPUT"
+
+if [ "$CLOUD" = "oracle" ]; then
+    NS=$(oci os ns get --query 'data' --raw-output 2>/dev/null || true)
+    COMPARTMENT=$(oci iam compartment list --query 'data[0].id' --raw-output 2>/dev/null || true)
+    REGION=$(oci iam region-subscription list --query 'data[0]."region-name"' --raw-output 2>/dev/null || true)
+
+    if [ -n "$NS" ] && [ -n "$COMPARTMENT" ] && [ -n "$REGION" ]; then
+        OBJNAME="$(basename "$OUTPUT")"
+        DISPLAY="void-oci-${ARCH}-$(date +%Y%m%d)"
+
+        echo ""
+        echo "==> OCI: uploading $OBJNAME to object storage"
+        oci os object put \
+            --namespace "$NS" \
+            --bucket-name "${OCI_BUCKET:-void-images}" \
+            --name "$OBJNAME" \
+            --file "$OUTPUT" \
+            --force
+
+        echo "==> OCI: importing image (CUSTOM / UEFI_64 / PARAVIRTUALIZED)"
+        IMAGE_ID=$(oci raw-request --http-method POST \
+            --target-uri "https://iaas.${REGION}.oraclecloud.com/20160918/images" \
+            --request-body "{
+              \"compartmentId\": \"$COMPARTMENT\",
+              \"displayName\": \"$DISPLAY\",
+              \"launchMode\": \"CUSTOM\",
+              \"launchOptions\": {
+                \"bootVolumeType\": \"PARAVIRTUALIZED\",
+                \"firmware\": \"UEFI_64\",
+                \"networkType\": \"PARAVIRTUALIZED\",
+                \"remoteDataVolumeType\": \"PARAVIRTUALIZED\"
+              },
+              \"imageSourceDetails\": {
+                \"sourceType\": \"objectStorageTuple\",
+                \"objectName\": \"$OBJNAME\",
+                \"bucketName\": \"${OCI_BUCKET:-void-images}\",
+                \"namespaceName\": \"$NS\",
+                \"sourceImageType\": \"QCOW2\"
+              }
+            }" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['id'])" 2>/dev/null || true)
+
+        if [ -n "$IMAGE_ID" ]; then
+            echo "==> OCI: image $IMAGE_ID (importing, may take ~10 min)"
+            oci compute image-shape-compatibility-entry add \
+                --image-id "$IMAGE_ID" \
+                --shape-name "VM.Standard.A1.Flex" 2>/dev/null || true
+        fi
+    else
+        echo ""
+        echo "Note: oci CLI not configured — skipping OCI upload/import."
+        echo "      Set up ~/.oci/config or run: oci setup config"
+    fi
+fi
