@@ -140,9 +140,11 @@ mount --bind /sys    "$ROOTFS/sys"
 mount --bind /dev    "$ROOTFS/dev"
 mount --bind /dev/pts "$ROOTFS/dev/pts"
 
-xchroot() {
-    chroot "$ROOTFS" /bin/sh -c "$*"
-}
+if [ "$ARCH" = "aarch64" ]; then
+    xchroot() { chroot "$ROOTFS" /usr/bin/qemu-aarch64-static /bin/sh -c "$*"; }
+else
+    xchroot() { chroot "$ROOTFS" /bin/sh -c "$*"; }
+fi
 
 # ─── Step 5: xbps repo + update ───────────────────────────────────────────────
 echo "==> Configuring xbps repo"
@@ -214,12 +216,26 @@ mkdir -p "$PYSITE"
 
 cp -r "$CLOUDINIT_SRC/cloudinit" "$PYSITE/"
 
-for bin in bin/cloud-init bin/cloud-id; do
-    [ -f "$CLOUDINIT_SRC/$bin" ] && \
-        install -m 755 "$CLOUDINIT_SRC/$bin" "$ROOTFS/usr/bin/"
-done
 [ -f "$CLOUDINIT_SRC/tools/cloud-init-per" ] && \
     install -m 755 "$CLOUDINIT_SRC/tools/cloud-init-per" "$ROOTFS/usr/bin/"
+
+# cloud-init and cloud-id are generated as entry points by setuptools in newer
+# versions and may not exist as source files — write the wrappers explicitly.
+cat > "$ROOTFS/usr/bin/cloud-init" << 'SCRIPT'
+#!/usr/bin/python3
+import sys
+from cloudinit.cmd.main import main
+sys.exit(main())
+SCRIPT
+chmod 755 "$ROOTFS/usr/bin/cloud-init"
+
+cat > "$ROOTFS/usr/bin/cloud-id" << 'SCRIPT'
+#!/usr/bin/python3
+import sys
+from cloudinit.cmd.cloud_id import main
+sys.exit(main())
+SCRIPT
+chmod 755 "$ROOTFS/usr/bin/cloud-id"
 
 # Install OpenRC init scripts from cloud-init source
 if [ -d "$CLOUDINIT_SRC/sysvinit/openrc" ]; then
@@ -244,15 +260,17 @@ EOF
 # hostname
 echo "void-oci" > "$ROOTFS/etc/hostname"
 
-# GRUB — files/grub uses ttyS0; aarch64 (PL011 UART) needs ttyAMA0 instead
+# GRUB — files/grub includes hvc0 + ttyAMA0 + ttyS0 + earlycon for max compatibility
 install -m 644 "$VOID_OCI_DIR/files/grub" "$ROOTFS/etc/default/grub"
-if [ "$ARCH" = "aarch64" ]; then
-    sed -i 's/ttyS0/ttyAMA0/g' "$ROOTFS/etc/default/grub"
-fi
 
 # dracut — bake cgroup_no_v1=all into initramfs cmdline
 mkdir -p "$ROOTFS/etc/dracut.conf.d"
 echo 'kernel_cmdline+=" cgroup_no_v1=all"' > "$ROOTFS/etc/dracut.conf.d/20-cgroup.conf"
+
+# Ensure virtio_net is loaded by the modules service before dhcpcd starts.
+# OpenRC's modules service reads /etc/modules-load.d/ (not /etc/modules).
+mkdir -p "$ROOTFS/etc/modules-load.d"
+echo "virtio_net" > "$ROOTFS/etc/modules-load.d/virtio.conf"
 
 # openrc config (NOTE: openrc.conf, NOT rc.conf — rc.conf belongs to runit/Void)
 install -m 644 "$VOID_OCI_DIR/files/openrc.conf" "$ROOTFS/etc/openrc.conf"
@@ -373,11 +391,41 @@ NBD=""
 
 echo "==> Done: $OUTPUT"
 echo ""
-echo "Verify:"
-echo "  sudo modprobe nbd; sudo qemu-nbd --connect=/dev/nbd0 $OUTPUT"
-echo "  sudo mount /dev/nbd0p2 /tmp/v"
-echo "  grep cgroup /tmp/v/etc/fstab   # should be empty"
-echo "  cat /tmp/v/etc/hostname        # void-oci"
-echo "  cat /tmp/v/etc/default/grub    # check cmdline"
-echo "  ls /tmp/v/etc/runlevels/sysinit/  # NO cgroups"
-echo "  sudo umount /tmp/v; sudo qemu-nbd --disconnect /dev/nbd0"
+echo "OCI import (UEFI_64 + PARAVIRTUALIZED boot — no iSCSI required):"
+cat << 'OCI'
+  # Upload
+  oci os object put --namespace <ns> --bucket-name <bucket> \
+      --name void-oracle-aarch64.qcow2 --file void-oracle-aarch64.qcow2 --force
+
+  # Import with CUSTOM launch mode so we can set firmware+bootVolumeType together
+  BODY='{
+    "compartmentId": "<compartment-ocid>",
+    "displayName": "void-oci-aarch64",
+    "launchMode": "CUSTOM",
+    "launchOptions": {
+      "bootVolumeType": "PARAVIRTUALIZED",
+      "firmware": "UEFI_64",
+      "networkType": "PARAVIRTUALIZED",
+      "remoteDataVolumeType": "PARAVIRTUALIZED"
+    },
+    "imageSourceDetails": {
+      "sourceType": "objectStorageTuple",
+      "objectName": "void-oracle-aarch64.qcow2",
+      "bucketName": "<bucket>",
+      "namespaceName": "<ns>",
+      "sourceImageType": "QCOW2"
+    }
+  }'
+  oci raw-request --http-method POST \
+      --target-uri "https://iaas.<region>.oraclecloud.com/20160918/images" \
+      --request-body "$BODY"
+
+  # Add shape compatibility
+  oci compute image-shape-compatibility-entry add \
+      --image-id <image-ocid> --shape-name VM.Standard.A1.Flex
+
+  # Launch
+  oci compute instance launch --shape VM.Standard.A1.Flex \
+      --shape-config '{"ocpus":1,"memoryInGBs":6}' \
+      --image-id <image-ocid> ...
+OCI
