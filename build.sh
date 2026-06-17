@@ -331,7 +331,8 @@ install -m 755 "$VOID_OCI_DIR/files/sshd"          "$ROOTFS/etc/init.d/sshd"
 install -m 755 "$VOID_OCI_DIR/files/chrony"        "$ROOTFS/etc/init.d/chronyd"
 install -m 755 "$VOID_OCI_DIR/files/mount-shared"  "$ROOTFS/etc/init.d/mount-shared"
 install -m 755 "$VOID_OCI_DIR/files/rsyslogd"     "$ROOTFS/etc/init.d/rsyslogd"
-install -m 644 "$VOID_OCI_DIR/files/chrony.conf" "$ROOTFS/etc/chrony.conf"
+install -m 644 "$VOID_OCI_DIR/files/chrony.conf"  "$ROOTFS/etc/chrony.conf"
+install -m 644 "$VOID_OCI_DIR/files/rsyslog.conf" "$ROOTFS/etc/rsyslog.conf"
 
 # cloud-init config — inject datasource for target cloud
 mkdir -p "$ROOTFS/etc/cloud"
