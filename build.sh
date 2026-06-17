@@ -252,7 +252,8 @@ xchroot "pip3 install --break-system-packages --no-build-isolation --no-deps \
 rm -rf "$CLOUDINIT_SRC"
 
 # ─── Step 8b: oracle-cloud-agent ──────────────────────────────────────────────
-if [ "$CLOUD" = "oracle" ] && [ -d "$VOID_PACKAGES/srcpkgs/oracle-cloud-agent" ]; then
+if [ "$CLOUD" = "oracle" ] && [ -d "$VOID_PACKAGES" ] && \
+   [ -f "$VOID_PACKAGES/srcpkgs/oracle-cloud-agent/template" ]; then
     echo "==> oracle-cloud-agent: locating package for $ARCH"
     OCA_PKG=$(find "$VOID_PACKAGES/hostdir/binpkgs" \
         -name "oracle-cloud-agent-*.${ARCH}.xbps" 2>/dev/null | sort -V | tail -1)
