@@ -244,11 +244,17 @@ srcpkgs/oracle-cloud-agent/
 
 ### Build
 
-The package is built automatically during `./build.sh aarch64 oracle` if
-`/usr/src/void-packages` (or `$VOID_PACKAGES`) exists and contains the template.
-To pre-build it manually:
+The template lives in `srcpkgs/oracle-cloud-agent/` in this repo.
+`build.sh` copies it to `$VOID_PACKAGES/srcpkgs/` automatically before
+building, so the repo is the single source of truth for the package.
+
+`build.sh` builds and installs the package automatically for oracle images if
+`/usr/src/void-packages` (or `$VOID_PACKAGES`) exists. To pre-build manually:
 
 ```sh
+# copy template first
+cp -r srcpkgs/oracle-cloud-agent /usr/src/void-packages/srcpkgs/
+
 # x86_64
 cd /usr/src/void-packages && ./xbps-src pkg oracle-cloud-agent
 

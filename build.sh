@@ -253,7 +253,9 @@ rm -rf "$CLOUDINIT_SRC"
 
 # ─── Step 8b: oracle-cloud-agent ──────────────────────────────────────────────
 if [ "$CLOUD" = "oracle" ] && [ -d "$VOID_PACKAGES" ] && \
-   [ -f "$VOID_PACKAGES/srcpkgs/oracle-cloud-agent/template" ]; then
+   [ -f "$VOID_OCI_DIR/srcpkgs/oracle-cloud-agent/template" ]; then
+    echo "==> oracle-cloud-agent: syncing template to void-packages"
+    cp -r "$VOID_OCI_DIR/srcpkgs/oracle-cloud-agent" "$VOID_PACKAGES/srcpkgs/"
     echo "==> oracle-cloud-agent: locating package for $ARCH"
     OCA_PKG=$(find "$VOID_PACKAGES/hostdir/binpkgs" \
         -name "oracle-cloud-agent-*.${ARCH}.xbps" 2>/dev/null | sort -V | tail -1)
