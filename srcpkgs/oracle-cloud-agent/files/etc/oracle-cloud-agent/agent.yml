@@ -1,0 +1,203 @@
+logDir: "/var/log/oracle-cloud-agent"
+agentHardStopInterval: "25s"
+pluginHardStopInterval: "20s"
+pluginHealthCheckInterval: "10m"
+logAllResources: false
+plugins:
+  gomon:
+    disabled: false
+    exec: "/usr/lib/oracle-cloud-agent/plugins/gomon/gomon"
+    winexec: ""
+    elevated: false
+    args: []
+    resourceConstraints:
+      cpu: 1
+      memory: 1
+  unifiedmonitoring:
+    disableByOs:
+      - "CentOS Linux":
+          - "6.x"
+      - "Oracle Linux Server":
+          - "6.x"
+    disableByRealm: []
+    disableByShape:
+      - "VM.Standard.E2.1.Micro"
+    disabled: false
+    exec: "/usr/lib/oracle-cloud-agent/plugins/unifiedmonitoring/unifiedmonitoring"
+    winexec: ""
+    args: []
+    resourceConstraints:
+      cpu: 1
+      memory: 1
+  bastions:
+    disabled: false
+    disableByRealm: []
+    exec: "/usr/lib/oracle-cloud-agent/plugins/bastions/bastions"
+    elevated: false
+    args: []
+    resourceConstraints:
+      cpu: 1
+      memory: 1
+  oci-vulnerabilityscan:
+    exec: "/usr/lib/oracle-cloud-agent/plugins/oci-vulnerabilityscan/oci-vulnerabilityscan"
+    winexec: ""
+    elevated: false
+    args: []
+    disabled: false
+    disableByRealm: []
+    resourceConstraints:
+      cpu: 1
+      memory: 1
+  oci-wlp:
+    exec: "/usr/lib/oracle-cloud-agent/plugins/oci-wlp/oci-wlp"
+    winexec: ""
+    elevated: false
+    args: []
+    disabled: false
+    disableByOs:
+      - "Oracle Linux Server":
+        - "6.x"
+      - "CentOS Linux":
+        - "6.x"
+    disableByRealm: []
+    resourceConstraints:
+      cpu: 1
+      memory: 1
+  oci-blockautoconfig:
+    disabled: false
+    exec: "/usr/lib/oracle-cloud-agent/plugins/oci-blockautoconfig/oci-blockautoconfig"
+    winexec: ""
+    elevated: false
+    disableByRealm: []
+    args: []
+    resourceConstraints:
+      cpu: 1
+      memory: 1
+  oci-osmh:
+    disabled: false
+    disableByOs:
+      - "CentOS Linux":
+      - "Red Hat Enterprise Linux Server":
+      - "Debian GNU/Linux":
+      - "veLinux GNU/Linux":
+    disableByRealm: []
+    exec: "/usr/lib/oracle-cloud-agent/plugins/oci-osmh/oci-osmh"
+    winexec: ""
+    elevated: true
+    args: []
+    resourceConstraints:
+      cpu: 1
+      memory: 1
+  oci-rdma-authentication:
+    disabled: false
+    disableByShape:
+      - "VM"
+      - "BM.Standard"
+      - "BM.DenseIO"
+      - "BM.BigData"
+      - "BM.GPU.T1.2"
+      - "BM.GPU.T1-2.4"
+      - "BM.GPU.A10.4"
+      - "BM.GPU.GU1.4"
+      - "BM.GPU3.8"
+      - "BM.GPU2.2"
+      - "BM.GPU.GU1.2"
+      - "BM.GPU.GB200.4"
+      - "BM.GPU.GB200-v2.4"
+    disableByRealm:
+      - "oc2"
+      - "oc3"
+      - "oc4"
+      - "oc5"
+      - "oc6"
+      - "oc8"
+      - "oc9"
+      - "oc10"
+      - "oc11"
+      - "oc13"
+      - "oc14"
+      - "oc15"
+      - "oc17"
+      - "oc18"
+      - "oc19"
+      - "oc20"
+    exec: "/usr/lib/oracle-cloud-agent/plugins/oci-hpc/oci-rdma-authentication/oci-rdma-authentication"
+    elevated: true
+    args: []
+    resourceConstraints:
+      cpu: 1
+      memory: 1
+  oci-hpc-monitoring:
+    disabled: false
+    disableByShape:
+      - "VM"
+      - "BM.Standard"
+      - "BM.DenseIO"
+      - "BM.BigData"
+      - "BM.GPU.T1.2"
+      - "BM.GPU.T1-2.4"
+      - "BM.GPU.A10.4"
+      - "BM.GPU.GU1.4"
+      - "BM.GPU3.8"
+      - "BM.GPU2.2"
+      - "BM.GPU.GU1.2"
+    disableByRealm:
+      - "oc2"
+      - "oc3"
+      - "oc4"
+      - "oc5"
+      - "oc6"
+      - "oc8"
+      - "oc9"
+      - "oc10"
+      - "oc11"
+      - "oc13"
+      - "oc14"
+      - "oc15"
+      - "oc17"
+      - "oc18"
+      - "oc19"
+      - "oc20"
+    exec: "/usr/lib/oracle-cloud-agent/plugins/oci-hpc/oci-hpc-monitoring/oci-hpc-monitoring"
+    elevated: true
+    args: []
+    resourceConstraints:
+      cpu: 1
+      memory: 1
+  oci-hpc-configure:
+    disabled: false
+    disableByShape:
+      - "VM"
+      - "BM.Standard"
+      - "BM.DenseIO"
+      - "BM.BigData"
+      - "BM.GPU.T1.2"
+      - "BM.GPU.T1-2.4"
+      - "BM.GPU.A10.4"
+      - "BM.GPU.GU1.4"
+      - "BM.GPU3.8"
+      - "BM.GPU2.2"
+      - "BM.GPU.GU1.2"
+    disableByRealm:
+      - "oc2"
+      - "oc3"
+      - "oc4"
+      - "oc5"
+      - "oc6"
+      - "oc8"
+      - "oc9"
+      - "oc10"
+      - "oc11"
+      - "oc13"
+      - "oc14"
+      - "oc15"
+      - "oc17"
+      - "oc18"
+      - "oc19"
+      - "oc20"
+    exec: "/usr/lib/oracle-cloud-agent/plugins/oci-hpc/oci-hpc-configure/oci-hpc-configure"
+    elevated: true
+    args: []
+    resourceConstraints:
+      cpu: 1
+      memory: 1

@@ -1,0 +1,95 @@
+# Template file for 'oracle-cloud-agent'
+pkgname=oracle-cloud-agent
+version=1.59.0.12
+revision=1
+archs="x86_64 aarch64"
+short_desc="Oracle Cloud Infrastructure agent for compute instance management"
+maintainer="Void Linux <pkg@voidlinux.org>"
+license="custom:OCA"
+homepage="https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/manage-plugins.htm"
+
+# Snap revision 120 = aarch64 v1.59.0-12, revision 119 = x86_64 v1.59.0-12
+_snap_id="ltx4XjES2e2ujitNIuO5GxPYDM6lp6ry"
+case "$XBPS_TARGET_MACHINE" in
+	x86_64)
+		_snap_rev=119
+		_snap_checksum="d08d39a2c38cb16108cc143a3f2e99761ff783d303a34e01aa2ba3a38f39a71d"
+		;;
+	aarch64)
+		_snap_rev=120
+		_snap_checksum="33ffa309feac27889d44878b7d2d9fd83ec22de20d779864996be478bab0036c"
+		;;
+esac
+
+do_fetch() {
+	local snapfile="${XBPS_SRCDISTDIR}/${pkgname}-${version}_${XBPS_TARGET_MACHINE}.snap"
+	local url="https://api.snapcraft.io/api/v1/snaps/download/${_snap_id}_${_snap_rev}.snap"
+	if [ ! -f "$snapfile" ]; then
+		msg_normal "Downloading oracle-cloud-agent snap for ${XBPS_TARGET_MACHINE}...\n"
+		curl -fL -o "$snapfile" "$url"
+	fi
+	echo "${_snap_checksum}  ${snapfile}" | sha256sum -c || {
+		rm -f "$snapfile"
+		msg_error "Checksum mismatch for ${snapfile}\n"
+	}
+}
+
+do_extract() {
+	mkdir -p "$wrksrc"
+	unsquashfs -d "$wrksrc" \
+		"${XBPS_SRCDISTDIR}/${pkgname}-${version}_${XBPS_TARGET_MACHINE}.snap"
+}
+
+do_install() {
+	local libdir="${DESTDIR}/usr/lib/oracle-cloud-agent"
+
+	# Main agent binary
+	vinstall agent 755 usr/lib/oracle-cloud-agent
+
+	# Plugin binaries + configs
+	local plugins="gomon unifiedmonitoring oci-blockautoconfig oci-vulnerabilityscan oci-wlp oci-osmh"
+	for p in $plugins; do
+		vmkdir usr/lib/oracle-cloud-agent/plugins/${p}
+		vinstall plugins/${p}/${p} 755 usr/lib/oracle-cloud-agent/plugins/${p}
+		if [ -f "plugins/${p}/config/config.yml" ]; then
+			vmkdir usr/lib/oracle-cloud-agent/plugins/${p}/config
+			vinstall plugins/${p}/config/config.yml 644 \
+				usr/lib/oracle-cloud-agent/plugins/${p}/config
+		fi
+	done
+
+	# bastions — binary sits directly in plugins/bastions (no subdir)
+	vmkdir usr/lib/oracle-cloud-agent/plugins/bastions
+	vinstall plugins/bastions 755 usr/lib/oracle-cloud-agent/plugins/bastions bastions
+
+	# HPC plugins
+	for p in oci-rdma-authentication oci-hpc-monitoring oci-hpc-configure; do
+		vmkdir usr/lib/oracle-cloud-agent/plugins/oci-hpc/${p}
+		vinstall plugins/oci-hpc/${p}/${p} 755 \
+			usr/lib/oracle-cloud-agent/plugins/oci-hpc/${p}
+		if [ -f "plugins/oci-hpc/${p}/config/config.yml" ]; then
+			vmkdir usr/lib/oracle-cloud-agent/plugins/oci-hpc/${p}/config
+			vinstall plugins/oci-hpc/${p}/config/config.yml 644 \
+				usr/lib/oracle-cloud-agent/plugins/oci-hpc/${p}/config
+		fi
+	done
+
+	# setCapability helper (used by oci-vulnerabilityscan)
+	vinstall plugins/setCapability 755 usr/lib/oracle-cloud-agent/plugins
+
+	# ocatools diagnostic script
+	vmkdir usr/libexec/oracle-cloud-agent/ocatools
+	vinstall usr/libexec/oracle-cloud-agent/ocatools/diagnostic 755 \
+		usr/libexec/oracle-cloud-agent/ocatools
+
+	# Config
+	vmkdir etc/oracle-cloud-agent
+	vinstall ${FILESDIR}/etc/oracle-cloud-agent/agent.yml 644 etc/oracle-cloud-agent
+
+	# OpenRC init script
+	vinstall ${FILESDIR}/etc/init.d/oracle-cloud-agent 755 etc/init.d
+
+	# Runtime directories (created by init script via checkpath, but keep ownership clean)
+	vmkdir var/log/oracle-cloud-agent
+	vmkdir var/lib/oracle-cloud-agent
+}

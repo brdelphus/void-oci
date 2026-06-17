@@ -1,0 +1,18 @@
+#!/sbin/openrc-run
+
+description="Oracle Cloud Infrastructure Agent"
+supervisor=supervise-daemon
+
+command="/usr/lib/oracle-cloud-agent/agent"
+command_args="-config /etc/oracle-cloud-agent/agent.yml"
+supervise_daemon_args="--stdout /var/log/oracle-cloud-agent/agent.log --stderr /var/log/oracle-cloud-agent/agent.log"
+
+depend() {
+    need net
+    after cloud-final
+}
+
+start_pre() {
+    checkpath -d -m 0755 /var/log/oracle-cloud-agent
+    checkpath -d -m 0755 /var/lib/oracle-cloud-agent
+}
