@@ -183,6 +183,7 @@ in the default runlevel, and starts it immediately. The node goes Ready within
 | Init | runit (PID 1) → OpenRC (services) |
 | Network | dhcpcd on eth0 |
 | Cloud init | cloud-init 26.1, Oracle datasource |
+| OCI agent | oracle-cloud-agent 1.59.0-12 *(oracle builds only)* |
 | Default user | `void` (UID 1000, wheel) |
 | Passwords | `void` / `root` → `voidlinux` (change on first login) |
 | SSH | Password auth enabled; cloud-init injects your SSH key on first boot; sshd in boot runlevel (ready before cloud-init completes) |
@@ -201,7 +202,7 @@ GPT, 8G image
 |---|---|
 | sysinit | devfs, dmesg, sysfs |
 | boot | cloud-init-local, dhcpcd, cloud-init, cloud-config, cloud-final, chronyd, **sshd** |
-| default | rsyslogd |
+| default | rsyslogd, oracle-cloud-agent *(oracle builds only)* |
 
 sshd is in the boot runlevel (not default) so it becomes available as soon as
 networking is up, without waiting for the cloud-init chain to complete. On OCI,
@@ -220,6 +221,58 @@ No cgroups service in sysinit — runit mounts cgroup2 in stage 1.
 | `files/sshd_config` | `/etc/ssh/sshd_config` |
 | `files/dhcpcd` | `/etc/init.d/dhcpcd` |
 | `files/sudoers-void` | `/etc/sudoers.d/void` |
+
+## Oracle Cloud Agent
+
+Oracle images include [Oracle Cloud Agent](https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/manage-plugins.htm),
+the lightweight Go daemon that enables OCI console features: monitoring, bastion
+sessions, run command, OS management, and HPC plugins.
+
+The agent is packaged as a Void xbps package built from the official snap
+(statically linked Go binaries — no snapd required at runtime).
+
+### Package location
+
+```
+srcpkgs/oracle-cloud-agent/
+  template                          # xbps-src build template
+  files/etc/oracle-cloud-agent/
+    agent.yml                       # plugin config with corrected paths
+  files/etc/init.d/
+    oracle-cloud-agent              # OpenRC init script (supervise-daemon)
+```
+
+### Build
+
+The package is built automatically during `./build.sh aarch64 oracle` if
+`/usr/src/void-packages` (or `$VOID_PACKAGES`) exists and contains the template.
+To pre-build it manually:
+
+```sh
+# x86_64
+cd /usr/src/void-packages && ./xbps-src pkg oracle-cloud-agent
+
+# aarch64
+cd /usr/src/void-packages && ./xbps-src -a aarch64 pkg oracle-cloud-agent
+```
+
+Cached packages in `hostdir/binpkgs/` are reused on subsequent image builds.
+If `$VOID_PACKAGES` is absent or the build fails, the image is built without
+the agent and a warning is printed.
+
+### Runtime
+
+```
+/usr/lib/oracle-cloud-agent/agent          # main daemon
+/usr/lib/oracle-cloud-agent/plugins/       # gomon, bastions, oci-osmh, ...
+/etc/oracle-cloud-agent/agent.yml          # plugin configuration
+/var/log/oracle-cloud-agent/agent.log      # log (created at first start)
+```
+
+Manage with standard OpenRC commands:
+```sh
+rc-service oracle-cloud-agent start|stop|status
+```
 
 ## OpenRC source
 
