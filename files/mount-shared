@@ -1,0 +1,14 @@
+#!/sbin/openrc-run
+
+description="Set root mount propagation to shared for container runtimes"
+
+depend() {
+    keyword -prefix -lxc -docker -openvz -vserver
+    before cgroups k3s containerd
+}
+
+start() {
+    ebegin "Making root mount shared"
+    mount --make-rshared /
+    eend $?
+}

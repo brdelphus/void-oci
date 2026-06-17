@@ -326,9 +326,10 @@ mkdir -p "$ROOTFS/etc/sudoers.d"
 install -m 440 "$VOID_OCI_DIR/files/sudoers-void" "$ROOTFS/etc/sudoers.d/void"
 
 # OpenRC init scripts for services not provided by Void packages
-install -m 755 "$VOID_OCI_DIR/files/dhcpcd" "$ROOTFS/etc/init.d/dhcpcd"
-install -m 755 "$VOID_OCI_DIR/files/sshd"   "$ROOTFS/etc/init.d/sshd"
-install -m 755 "$VOID_OCI_DIR/files/chrony"  "$ROOTFS/etc/init.d/chronyd"
+install -m 755 "$VOID_OCI_DIR/files/dhcpcd"        "$ROOTFS/etc/init.d/dhcpcd"
+install -m 755 "$VOID_OCI_DIR/files/sshd"          "$ROOTFS/etc/init.d/sshd"
+install -m 755 "$VOID_OCI_DIR/files/chrony"        "$ROOTFS/etc/init.d/chronyd"
+install -m 755 "$VOID_OCI_DIR/files/mount-shared"  "$ROOTFS/etc/init.d/mount-shared"
 install -m 644 "$VOID_OCI_DIR/files/chrony.conf" "$ROOTFS/etc/chrony.conf"
 
 # cloud-init config — inject datasource for target cloud
@@ -370,8 +371,11 @@ mkdir -p "$ROOTFS/etc/runlevels/sysinit" \
          "$ROOTFS/etc/runlevels/default" \
          "$ROOTFS/etc/runlevels/shutdown"
 
-# sysinit: devfs dmesg sysfs only — NO cgroups (runit owns cgroup2 mounting)
-for svc in devfs dmesg sysfs; do
+# sysinit: devfs dmesg sysfs + mount-shared (required for container runtimes)
+# mount-shared runs mount --make-rshared / — OpenRC (unlike systemd) does not
+# set MS_SHARED on the root mount, so containers with Bidirectional/HostToContainer
+# mount propagation (CSI drivers, node-exporter) fail without it.
+for svc in devfs dmesg sysfs mount-shared; do
     ln -sf "/etc/init.d/$svc" "$ROOTFS/etc/runlevels/sysinit/$svc"
 done
 rm -f "$ROOTFS/etc/runlevels/sysinit/cgroups"
