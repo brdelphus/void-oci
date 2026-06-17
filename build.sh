@@ -167,7 +167,7 @@ xchroot "xbps-install -Syu xbps"
 xchroot "xbps-install -Syu"
 
 # ─── Step 6: Package installation ─────────────────────────────────────────────
-COMMON_PKGS="base-minimal dracut openssh dhcpcd iproute2 grub python3 python3-pip python3-setuptools libcap-devel meson ninja pkg-config gcc make git curl wget ca-certificates e2fsprogs parted chrony kbd logrotate rsyslog cloud-guest-utils"
+COMMON_PKGS="base-minimal dracut openssh dhcpcd iproute2 grub python3 python3-pip python3-setuptools libcap-devel meson ninja pkg-config gcc make git curl wget ca-certificates e2fsprogs parted chrony kbd logrotate rsyslog cloud-guest-utils wireguard-tools"
 
 if [ "$ARCH" = "x86_64" ]; then
     ARCH_PKGS="linux6.12 linux6.18 linux-firmware-amd linux-firmware-intel grub-x86_64-efi"
@@ -330,6 +330,7 @@ install -m 755 "$VOID_OCI_DIR/files/dhcpcd"        "$ROOTFS/etc/init.d/dhcpcd"
 install -m 755 "$VOID_OCI_DIR/files/sshd"          "$ROOTFS/etc/init.d/sshd"
 install -m 755 "$VOID_OCI_DIR/files/chrony"        "$ROOTFS/etc/init.d/chronyd"
 install -m 755 "$VOID_OCI_DIR/files/mount-shared"  "$ROOTFS/etc/init.d/mount-shared"
+install -m 755 "$VOID_OCI_DIR/files/rsyslogd"     "$ROOTFS/etc/init.d/rsyslogd"
 install -m 644 "$VOID_OCI_DIR/files/chrony.conf" "$ROOTFS/etc/chrony.conf"
 
 # cloud-init config — inject datasource for target cloud
