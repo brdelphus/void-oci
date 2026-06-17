@@ -19,6 +19,7 @@ plugins:
           - "6.x"
       - "Oracle Linux Server":
           - "6.x"
+      - "Void": []
     disableByRealm: []
     disableByShape:
       - "VM.Standard.E2.1.Micro"

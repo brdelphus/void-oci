@@ -4,10 +4,11 @@ description="Oracle Cloud Infrastructure Agent"
 supervisor=supervise-daemon
 
 command="/usr/lib/oracle-cloud-agent/agent"
+command_args="-agent-config /etc/oracle-cloud-agent/agent.yml"
 supervise_daemon_args="--stdout /var/log/oracle-cloud-agent/agent.log --stderr /var/log/oracle-cloud-agent/agent.log"
 
 depend() {
-    need net
+    need net dhcpcd
     after cloud-final
 }
 
@@ -15,18 +16,21 @@ start_pre() {
     # Runtime directories expected by the agent and its plugins
     local dirs="
         /var/log/oracle-cloud-agent
+        /var/log/oracle-cloud-agent/plugins
         /var/log/oracle-cloud-agent/plugins/gomon
         /var/log/oracle-cloud-agent/plugins/unifiedmonitoring
         /var/log/oracle-cloud-agent/plugins/oci-osmh
         /var/log/oracle-cloud-agent/plugins/oci-vulnerabilityscan
         /var/log/oracle-cloud-agent/plugins/oci-blockautoconfig
         /var/log/oracle-cloud-agent/plugins/oci-wlp
+        /var/log/oracle-cloud-agent/plugins/oci-hpc
         /var/log/oracle-cloud-agent/plugins/oci-hpc/oci-hpc-configure
         /var/log/oracle-cloud-agent/plugins/oci-hpc/oci-hpc-monitoring
         /var/log/oracle-cloud-agent/plugins/oci-hpc/oci-rdma-authentication
         /var/lib/oracle-cloud-agent
         /var/lib/oracle-cloud-agent/tmp
         /var/lib/oracle-cloud-agent/reattach
+        /var/lib/oracle-cloud-agent/plugins
         /var/lib/oracle-cloud-agent/plugins/unifiedmonitoring
         /var/lib/oracle-cloud-agent/plugins/oci-osmh
         /var/lib/oracle-cloud-agent/plugins/oci-vulnerabilityscan

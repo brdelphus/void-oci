@@ -1,3 +1,4 @@
+Include /etc/ssh/sshd_config.d/*.conf
 PasswordAuthentication yes
 PermitRootLogin yes
 AuthorizedKeysFile .ssh/authorized_keys
@@ -6,4 +7,4 @@ UsePAM no
 X11Forwarding no
 PrintMotd no
 AcceptEnv LANG LC_*
-Subsystem sftp /usr/lib/ssh/sftp-server
+Subsystem sftp /usr/libexec/sftp-server

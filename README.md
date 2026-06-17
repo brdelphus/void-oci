@@ -169,8 +169,9 @@ in the default runlevel, and starts it immediately. The node goes Ready within
 
 | Arch | Kernel | k3s | containerd | Result |
 |---|---|---|---|---|
-| x86_64 | 6.18.35_1 | v1.35.5+k3s1 | 2.2.3-k3s1 | Ready |
-| aarch64 | 6.12.93_1 | v1.35.5+k3s1 | 2.2.3-k3s1 | Ready |
+| x86_64 | 6.18.35_1 | v1.35.5+k3s1 | 2.2.3-k3s1 | Ready (QEMU) |
+| aarch64 | 6.12.93_1 | v1.35.5+k3s1 | 2.2.3-k3s1 | Ready (QEMU) |
+| aarch64 | 6.12.93_1 | — | — | SSH verified on OCI A1 Flex (sa-saopaulo-1) |
 
 ## What gets built
 
@@ -186,7 +187,7 @@ in the default runlevel, and starts it immediately. The node goes Ready within
 | OCI agent | oracle-cloud-agent 1.59.0-12 *(oracle builds only)* |
 | Default user | `void` (UID 1000, wheel) |
 | Passwords | `void` / `root` → `voidlinux` (change on first login) |
-| SSH | Password auth enabled; cloud-init injects your SSH key on first boot; sshd in boot runlevel (ready before cloud-init completes) |
+| SSH | cloud-init injects SSH key on first boot via OCI IMDS (bootcmd fallback + Oracle datasource); password auth always available as fallback (`sshd_config.d/00-void-oci.conf`); sshd in boot runlevel |
 
 ## Disk layout
 
@@ -218,7 +219,8 @@ No cgroups service in sysinit — runit mounts cgroup2 in stage 1.
 | `files/grub` | `/etc/default/grub` |
 | `files/openrc.conf` | `/etc/openrc.conf` |
 | `files/cloud.cfg` | `/etc/cloud/cloud.cfg` |
-| `files/sshd_config` | `/etc/ssh/sshd_config` |
+| `files/sshd_config` | `/etc/ssh/sshd_config` (includes `sshd_config.d/`) |
+| *(generated)* | `/etc/ssh/sshd_config.d/00-void-oci.conf` (`PasswordAuthentication yes`) |
 | `files/dhcpcd` | `/etc/init.d/dhcpcd` |
 | `files/sudoers-void` | `/etc/sudoers.d/void` |
 

@@ -3,7 +3,7 @@
 description="dhcpcd network daemon"
 
 command="/sbin/dhcpcd"
-command_args="-b -q"
+command_args="-w -q"
 pidfile="/run/dhcpcd/pid"
 
 depend() {

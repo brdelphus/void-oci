@@ -167,7 +167,7 @@ xchroot "xbps-install -Syu xbps"
 xchroot "xbps-install -Syu"
 
 # ─── Step 6: Package installation ─────────────────────────────────────────────
-COMMON_PKGS="base-minimal dracut openssh dhcpcd iproute2 grub python3 python3-pip python3-setuptools libcap-devel meson ninja pkg-config gcc make git curl wget ca-certificates e2fsprogs parted chrony kbd logrotate rsyslog cloud-utils"
+COMMON_PKGS="base-minimal dracut openssh dhcpcd iproute2 grub python3 python3-pip python3-setuptools libcap-devel meson ninja pkg-config gcc make git curl wget ca-certificates e2fsprogs parted chrony kbd logrotate rsyslog cloud-guest-utils"
 
 if [ "$ARCH" = "x86_64" ]; then
     ARCH_PKGS="linux6.12 linux6.18 linux-firmware-amd linux-firmware-intel grub-x86_64-efi"
@@ -179,6 +179,8 @@ echo "==> Installing packages"
 # xbps exits non-zero if some packages are already installed; that's fine
 # shellcheck disable=SC2086
 xchroot "xbps-install -y $COMMON_PKGS $ARCH_PKGS" || true
+xchroot "xbps-remove -yoO" || true
+xchroot "vkpurge rm all" 2>/dev/null || true
 
 # ─── Step 7: Build OpenRC from source ─────────────────────────────────────────
 echo "==> Building OpenRC from source"
@@ -246,7 +248,7 @@ if [ -d "$CLOUDINIT_SRC/sysvinit/openrc" ]; then
 fi
 
 # Python deps via pip (--break-system-packages needed for PEP 668 on Void Linux)
-xchroot "pip3 install --break-system-packages --no-build-isolation --no-deps \
+xchroot "pip3 install --break-system-packages --no-build-isolation \
     Jinja2 oauthlib configobj jsonschema PyYAML requests jsonpatch netifaces2"
 
 rm -rf "$CLOUDINIT_SRC"
@@ -276,7 +278,7 @@ if [ "$CLOUD" = "oracle" ] && [ -d "$VOID_PACKAGES" ] && \
         OCA_REPO="$ROOTFS/tmp/oca-repo"
         mkdir -p "$OCA_REPO"
         cp "$OCA_PKG" "$OCA_REPO/"
-        xbps-rindex -a "$OCA_REPO/"*.xbps
+        XBPS_ARCH="$ARCH" xbps-rindex -a "$OCA_REPO/"*.xbps
         xchroot "XBPS_ALLOW_UNSIGNED_PKGS=1 xbps-install -y --repository=/tmp/oca-repo oracle-cloud-agent" || \
             echo "WARNING: oracle-cloud-agent install failed — skipping"
         rm -rf "$OCA_REPO"
@@ -314,6 +316,10 @@ install -m 644 "$VOID_OCI_DIR/files/openrc.conf" "$ROOTFS/etc/openrc.conf"
 
 # SSH
 install -m 600 "$VOID_OCI_DIR/files/sshd_config" "$ROOTFS/etc/ssh/sshd_config"
+# drop-in: ensure PasswordAuthentication yes wins regardless of what cloud-init writes
+mkdir -p "$ROOTFS/etc/ssh/sshd_config.d"
+printf 'PasswordAuthentication yes\n' > "$ROOTFS/etc/ssh/sshd_config.d/00-void-oci.conf"
+chmod 600 "$ROOTFS/etc/ssh/sshd_config.d/00-void-oci.conf"
 
 # sudoers
 mkdir -p "$ROOTFS/etc/sudoers.d"
@@ -333,6 +339,8 @@ chmod 644 "$ROOTFS/etc/cloud/cloud.cfg"
 
 # void user
 xchroot "useradd -m -u 1000 -G wheel,adm -s /bin/bash void 2>/dev/null || true"
+# oracle-cloud-agent system group (required by oci-osmh plugin for Unix socket)
+xchroot "groupadd -r oracle-cloud-agent 2>/dev/null || true"
 # chpasswd can silently fail in a minimal chroot; write the hash directly instead
 VOIDHASH=$(openssl passwd -6 "voidlinux")
 sed -i "s|^void:[^:]*:|void:${VOIDHASH}:|" "$ROOTFS/etc/shadow"

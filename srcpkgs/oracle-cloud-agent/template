@@ -48,20 +48,27 @@ do_install() {
 	vinstall agent 755 usr/lib/oracle-cloud-agent
 
 	# Plugin binaries + configs
+	# Configs go to /etc/oracle-cloud-agent/plugins/<name>/config.yml — that is
+	# the first path searched by each plugin binary (before the usr/lib fallback).
 	local plugins="gomon unifiedmonitoring oci-blockautoconfig oci-vulnerabilityscan oci-wlp oci-osmh"
 	for p in $plugins; do
 		vmkdir usr/lib/oracle-cloud-agent/plugins/${p}
 		vinstall plugins/${p}/${p} 755 usr/lib/oracle-cloud-agent/plugins/${p}
 		if [ -f "plugins/${p}/config/config.yml" ]; then
-			vmkdir usr/lib/oracle-cloud-agent/plugins/${p}/config
+			vmkdir etc/oracle-cloud-agent/plugins/${p}
 			vinstall plugins/${p}/config/config.yml 644 \
-				usr/lib/oracle-cloud-agent/plugins/${p}/config
+				etc/oracle-cloud-agent/plugins/${p}
 		fi
 	done
 
-	# bastions — binary sits directly in plugins/bastions (no subdir)
+	# bastions — binary sits directly in plugins/bastions/ (no subdir binary)
 	vmkdir usr/lib/oracle-cloud-agent/plugins/bastions
 	vinstall plugins/bastions 755 usr/lib/oracle-cloud-agent/plugins/bastions bastions
+	if [ -f "plugins/bastions-config/config.yml" ]; then
+		vmkdir etc/oracle-cloud-agent/plugins/bastions
+		vinstall plugins/bastions-config/config.yml 644 \
+			etc/oracle-cloud-agent/plugins/bastions
+	fi
 
 	# HPC plugins
 	for p in oci-rdma-authentication oci-hpc-monitoring oci-hpc-configure; do
@@ -69,11 +76,17 @@ do_install() {
 		vinstall plugins/oci-hpc/${p}/${p} 755 \
 			usr/lib/oracle-cloud-agent/plugins/oci-hpc/${p}
 		if [ -f "plugins/oci-hpc/${p}/config/config.yml" ]; then
-			vmkdir usr/lib/oracle-cloud-agent/plugins/oci-hpc/${p}/config
+			vmkdir etc/oracle-cloud-agent/plugins/oci-hpc/${p}
 			vinstall plugins/oci-hpc/${p}/config/config.yml 644 \
-				usr/lib/oracle-cloud-agent/plugins/oci-hpc/${p}/config
+				etc/oracle-cloud-agent/plugins/oci-hpc/${p}
 		fi
 	done
+	# oci-hpc top-level config
+	if [ -f "plugins/oci-hpc/config/config.yml" ]; then
+		vmkdir etc/oracle-cloud-agent/plugins/oci-hpc
+		vinstall plugins/oci-hpc/config/config.yml 644 \
+			etc/oracle-cloud-agent/plugins/oci-hpc
+	fi
 
 	# setCapability helper (used by oci-vulnerabilityscan)
 	vinstall plugins/setCapability 755 usr/lib/oracle-cloud-agent/plugins
