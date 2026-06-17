@@ -24,6 +24,7 @@ OUTPUT="$VOID_OCI_DIR/void-${CLOUD}-${ARCH}.qcow2"
 CLOUDINIT_TAG="26.1"
 ROOTFS="$(mktemp -d /tmp/void-oci-rootfs.XXXXXX)"
 OCI_BUCKET="${OCI_BUCKET:-void-images}"
+VOID_PACKAGES="${VOID_PACKAGES:-/usr/src/void-packages}"
 
 # ─── Validation ───────────────────────────────────────────────────────────────
 [ "$(id -u)" -eq 0 ] || { echo "ERROR: must run as root"; exit 1; }
@@ -63,6 +64,7 @@ cleanup() {
     umount "$ROOTFS/sys"         2>/dev/null || true
     umount "$ROOTFS/dev/pts"     2>/dev/null || true
     umount "$ROOTFS/dev"         2>/dev/null || true
+    umount "$ROOTFS/tmp/oca-repo" 2>/dev/null || true
     umount "$ROOTFS"             2>/dev/null || true
     [ -n "$NBD" ] && qemu-nbd --disconnect "$NBD" 2>/dev/null || true
     rmdir "$ROOTFS" 2>/dev/null || true
@@ -249,6 +251,37 @@ xchroot "pip3 install --break-system-packages --no-build-isolation --no-deps \
 
 rm -rf "$CLOUDINIT_SRC"
 
+# ─── Step 8b: oracle-cloud-agent ──────────────────────────────────────────────
+if [ "$CLOUD" = "oracle" ] && [ -d "$VOID_PACKAGES/srcpkgs/oracle-cloud-agent" ]; then
+    echo "==> oracle-cloud-agent: locating package for $ARCH"
+    OCA_PKG=$(find "$VOID_PACKAGES/hostdir/binpkgs" \
+        -name "oracle-cloud-agent-*.${ARCH}.xbps" 2>/dev/null | sort -V | tail -1)
+
+    if [ -z "$OCA_PKG" ]; then
+        echo "==> oracle-cloud-agent: building for $ARCH (downloads ~100MB snap)"
+        if [ "$ARCH" = "aarch64" ]; then
+            ( cd "$VOID_PACKAGES" && ./xbps-src -a aarch64 pkg oracle-cloud-agent ) || true
+        else
+            ( cd "$VOID_PACKAGES" && ./xbps-src pkg oracle-cloud-agent ) || true
+        fi
+        OCA_PKG=$(find "$VOID_PACKAGES/hostdir/binpkgs" \
+            -name "oracle-cloud-agent-*.${ARCH}.xbps" 2>/dev/null | sort -V | tail -1)
+    fi
+
+    if [ -n "$OCA_PKG" ]; then
+        echo "==> oracle-cloud-agent: installing $(basename "$OCA_PKG")"
+        OCA_REPO="$ROOTFS/tmp/oca-repo"
+        mkdir -p "$OCA_REPO"
+        cp "$OCA_PKG" "$OCA_REPO/"
+        xbps-rindex -a "$OCA_REPO/"*.xbps
+        xchroot "XBPS_ALLOW_UNSIGNED_PKGS=1 xbps-install -y --repository=/tmp/oca-repo oracle-cloud-agent" || \
+            echo "WARNING: oracle-cloud-agent install failed — skipping"
+        rm -rf "$OCA_REPO"
+    else
+        echo "WARNING: oracle-cloud-agent build failed or not found for $ARCH — skipping"
+    fi
+fi
+
 # ─── Step 9: System configuration ─────────────────────────────────────────────
 echo "==> Configuring system"
 
@@ -345,6 +378,12 @@ ln -sf "/etc/init.d/sshd" "$ROOTFS/etc/runlevels/boot/sshd"
 
 # default: rsyslog
 ln -sf "/etc/init.d/rsyslogd" "$ROOTFS/etc/runlevels/default/rsyslogd" 2>/dev/null || true
+
+# default: oracle-cloud-agent (OCI only — installed by step 8b)
+if [ "$CLOUD" = "oracle" ] && [ -f "$ROOTFS/etc/init.d/oracle-cloud-agent" ]; then
+    ln -sf "/etc/init.d/oracle-cloud-agent" \
+        "$ROOTFS/etc/runlevels/default/oracle-cloud-agent"
+fi
 
 # Serial console agetty — enables OCI "Launch serial console" browser terminal
 SERIAL_DEV=$( [ "$ARCH" = "aarch64" ] && echo "ttyAMA0" || echo "ttyS0" )
