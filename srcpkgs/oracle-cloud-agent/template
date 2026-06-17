@@ -3,6 +3,7 @@ pkgname=oracle-cloud-agent
 version=1.59.0.12
 revision=1
 archs="x86_64 aarch64"
+hostmakedepends="curl squashfs-tools"
 short_desc="Oracle Cloud Infrastructure agent for compute instance management"
 maintainer="Void Linux <pkg@voidlinux.org>"
 license="custom:OCA"
