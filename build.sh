@@ -178,7 +178,9 @@ fi
 echo "==> Installing packages"
 # xbps exits non-zero if some packages are already installed; that's fine
 # shellcheck disable=SC2086
-xchroot "xbps-install -y $COMMON_PKGS $ARCH_PKGS" || true
+if ! xchroot "xbps-install -y $COMMON_PKGS $ARCH_PKGS" 2>&1; then
+    echo "WARNING: xbps-install returned an error (package already installed or repo issue) — check output above"
+fi
 xchroot "xbps-remove -yoO" || true
 xchroot "vkpurge rm all" 2>/dev/null || true
 
@@ -209,10 +211,14 @@ umount "$ROOTFS/openrc-src"
 
 # ─── Step 8: cloud-init installation ──────────────────────────────────────────
 echo "==> Installing cloud-init $CLOUDINIT_TAG"
-CLOUDINIT_SRC="/tmp/cloud-init-src-$$"
-if [ ! -d "$CLOUDINIT_SRC" ]; then
+CLOUDINIT_SRC="${CLOUDINIT_CACHE:-/var/cache/void-oci/cloud-init-src}"
+if [ ! -d "$CLOUDINIT_SRC/.git" ]; then
+    mkdir -p "$CLOUDINIT_SRC"
     git clone --depth=1 --branch "$CLOUDINIT_TAG" \
         https://github.com/canonical/cloud-init.git "$CLOUDINIT_SRC"
+else
+    # cached from a previous build; rm -rf "$CLOUDINIT_SRC" if CLOUDINIT_TAG changes
+    echo "==> Reusing cached cloud-init source ($CLOUDINIT_SRC)"
 fi
 
 PYVER="$(xchroot "python3 -c 'import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")'  2>/dev/null")"
@@ -251,7 +257,7 @@ fi
 xchroot "pip3 install --break-system-packages --no-build-isolation \
     Jinja2 oauthlib configobj jsonschema PyYAML requests jsonpatch netifaces2"
 
-rm -rf "$CLOUDINIT_SRC"
+# cloud-init cache persists between builds (no re-clone)
 
 # ─── Step 8b: oracle-cloud-agent ──────────────────────────────────────────────
 if [ "$CLOUD" = "oracle" ] && [ -d "$VOID_PACKAGES" ] && \
@@ -345,7 +351,8 @@ xchroot "useradd -m -u 1000 -G wheel,adm -s /bin/bash void 2>/dev/null || true"
 # oracle-cloud-agent system group (required by oci-osmh plugin for Unix socket)
 xchroot "groupadd -r oracle-cloud-agent 2>/dev/null || true"
 # chpasswd can silently fail in a minimal chroot; write the hash directly instead
-VOIDHASH=$(openssl passwd -6 "voidlinux")
+# fixed salt -> identical shadow hash across builds (reproducible image)
+VOIDHASH=$(openssl passwd -6 -salt v01d0c1x "voidlinux")
 sed -i "s|^void:[^:]*:|void:${VOIDHASH}:|" "$ROOTFS/etc/shadow"
 sed -i "s|^root:[^:]*:|root:${VOIDHASH}:|" "$ROOTFS/etc/shadow"
 
