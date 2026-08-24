@@ -3,6 +3,10 @@
 Reproducible QCOW2 image builder for Void Linux OCI instances (Oracle Cloud),
 purpose-built for running k3s clusters.
 
+This image is what the [K3s-void-v3](https://github.com/brdelphus/K3s-void-v3)
+project (Terraform + cloud-init for HA K3s on OCI) boots: build it, import it
+into your tenancy, and point `void_oci_image_display_name` at it.
+
 ## Why
 
 Oracle Cloud has no official Void Linux images. Running k3s on mainstream distro
