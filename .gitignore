@@ -12,3 +12,7 @@ openrc/o
 
 # Claude session files
 **/.claude/
+
+# Local tooling state (never commit)
+.kube/
+.local/

@@ -340,6 +340,12 @@ install -m 755 "$VOID_OCI_DIR/files/rsyslogd"     "$ROOTFS/etc/init.d/rsyslogd"
 install -m 644 "$VOID_OCI_DIR/files/chrony.conf"  "$ROOTFS/etc/chrony.conf"
 install -m 644 "$VOID_OCI_DIR/files/rsyslog.conf" "$ROOTFS/etc/rsyslog.conf"
 
+# Config do dhcpcd (22/ago/2026): `nooption classless_static_routes` — o DHCP
+# do OCI entrega rotas via opção 121 SEM a default; remover a 121 da mensagem
+# faz o dhcpcd usar a opção router (opção 3) → rota default nativa do DHCP.
+# (Primeiro fix usava `ignore`, keyword inexistente — sem efeito; corrigido.)
+install -m 644 "$VOID_OCI_DIR/files/dhcpcd.conf" "$ROOTFS/etc/dhcpcd.conf"
+
 # cloud-init config — inject datasource for target cloud
 mkdir -p "$ROOTFS/etc/cloud"
 sed "s|@@DATASOURCE@@|$DATASOURCE|g" "$VOID_OCI_DIR/files/cloud.cfg" \
