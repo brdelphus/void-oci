@@ -212,6 +212,43 @@ sshd were in default, SSH would be unreachable until cloud-init finished.
 
 No cgroups service in sysinit — runit mounts cgroup2 in stage 1.
 
+## Cloud-init
+
+`files/cloud.cfg` (installed at `/etc/cloud/cloud.cfg`) drives first-boot
+provisioning. On OCI the datasource is Oracle, talking to the instance metadata
+service (IMDS) at `169.254.169.254`.
+
+What cloud-init does on first boot:
+
+- **SSH key injection** — OCI provides exactly one SSH public key per instance.
+  A `bootcmd` fetches it from
+  `http://169.254.169.254/opc/v1/instance/metadata/ssh_authorized_keys` and
+  writes it to `/home/void/.ssh/authorized_keys` (correct ownership/permissions)
+  **before** the `ssh` module runs — key injection stays reliable even when the
+  standard module is slow or flaky on first boot
+- **Root filesystem resize** — `growpart` + `resizefs` expand the root partition
+  to the full boot volume (the image ships as 8G)
+- **Hostname & hosts** — `set_hostname` / `update_hostname` / `update_etc_hosts`
+  apply the instance name from OCI
+- **User setup** — user `void` (UID 1000, groups `wheel` + `adm`) with
+  passwordless sudo; `disable_root: true`; `ssh_pwauth: true` (password login
+  kept as a fallback)
+- **NTP / timezone** — chronyd via the `ntp` module
+- **Hooks** — runs `scripts-per-boot` / `scripts-per-instance` / `scripts-user`
+  from the instance
+
+**Network dependency**: cloud-init needs IMDS reachable before anything works,
+so the boot runlevel starts `dhcpcd` with `-w` (wait for network to complete)
+and `provide net network-online`. On OCI the DHCP server hands out routes via
+option 121 (classless static routes) **without** a default route —
+`files/dhcpcd.conf` uses `nooption classless_static_routes` so dhcpcd falls
+back to the router option (option 3) and gets the default gateway. Without
+this, the instance has no internet, IMDS is unreachable, and the cloud-init
+chain hangs on first boot.
+
+`sshd` also runs in the boot runlevel, so SSH becomes available as soon as the
+network is up — no need to wait for the cloud-init chain to finish.
+
 ## Configuration files
 
 | File | Destination |
