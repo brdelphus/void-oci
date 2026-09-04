@@ -170,9 +170,11 @@ xchroot "xbps-install -Syu"
 COMMON_PKGS="base-minimal dracut openssh dhcpcd iproute2 grub python3 python3-pip python3-setuptools libcap-devel meson ninja pkg-config gcc make git curl wget ca-certificates e2fsprogs parted chrony kbd logrotate rsyslog cloud-guest-utils wireguard-tools"
 
 if [ "$ARCH" = "x86_64" ]; then
-    ARCH_PKGS="linux6.12 linux6.18 linux-firmware-amd linux-firmware-intel grub-x86_64-efi"
+    # 'linux' meta-package = current stable series at build time (no hardcoded
+    # kernel pins); linux6.6 (LTS) kept as GRUB fallback kernel.
+    ARCH_PKGS="linux linux6.6 linux-firmware-amd linux-firmware-intel grub-x86_64-efi"
 else
-    ARCH_PKGS="linux6.12 grub-arm64-efi"
+    ARCH_PKGS="linux linux6.6 grub-arm64-efi"
 fi
 
 echo "==> Installing packages"

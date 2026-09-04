@@ -182,8 +182,8 @@ in the default runlevel, and starts it immediately. The node goes Ready within
 | Component | Detail |
 |---|---|
 | Base | Void Linux ROOTFS 20250202 |
-| Kernel (x86_64) | linux6.12 + linux6.18 |
-| Kernel (aarch64) | linux6.12 |
+| Kernel (x86_64) | `linux` meta-package (current stable) + linux6.6 LTS fallback |
+| Kernel (aarch64) | `linux` meta-package (current stable) + linux6.6 LTS fallback |
 | Bootloader | GRUB EFI (removable) |
 | Init | runit (PID 1) → OpenRC (services) |
 | Network | dhcpcd on eth0 |
