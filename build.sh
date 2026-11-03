@@ -332,9 +332,11 @@ chmod 600 "$ROOTFS/etc/ssh/sshd_config.d/00-void-oci.conf"
 mkdir -p "$ROOTFS/etc/sudoers.d"
 install -m 440 "$VOID_OCI_DIR/files/sudoers-void" "$ROOTFS/etc/sudoers.d/void"
 
-# OpenRC init scripts for services not provided by Void packages
+# OpenRC init scripts for services not provided by Void packages.
+# NOTE: sshd is intentionally NOT here — void's openssh package ships
+# /etc/sv/sshd and sshd is supervised by runit (see Step 12). An OpenRC
+# wrapper only daemonizes the binary, so nobody owns the PID.
 install -m 755 "$VOID_OCI_DIR/files/dhcpcd"        "$ROOTFS/etc/init.d/dhcpcd"
-install -m 755 "$VOID_OCI_DIR/files/sshd"          "$ROOTFS/etc/init.d/sshd"
 install -m 755 "$VOID_OCI_DIR/files/chrony"        "$ROOTFS/etc/init.d/chronyd"
 install -m 755 "$VOID_OCI_DIR/files/mount-shared"  "$ROOTFS/etc/init.d/mount-shared"
 install -m 755 "$VOID_OCI_DIR/files/rsyslogd"     "$ROOTFS/etc/init.d/rsyslogd"
@@ -401,11 +403,20 @@ for svc in cloud-init-local dhcpcd cloud-init cloud-config cloud-final chronyd; 
     ln -sf "/etc/init.d/$svc" "$ROOTFS/etc/runlevels/boot/$svc"
 done
 
-# boot: sshd — must be here, not default, so it starts independently of cloud-init.
-# If sshd is in default, the entire default runlevel waits for boot (cloud-init chain)
-# to finish. On OCI, cloud-init-local is slow on first boot so SSH would be unreachable
-# until cloud-init completes. Moving to boot lets sshd start as soon as dhcpcd is up.
-ln -sf "/etc/init.d/sshd" "$ROOTFS/etc/runlevels/boot/sshd"
+# sshd — runit-supervised (NOT OpenRC).
+# The previous OpenRC wrapper daemonized sshd: OpenRC lost the PID (rc-status
+# reported sshd "stopped" while it ran), so nothing restarted it on crash, and
+# after an `xbps-install -Suy` of openssh the old daemon kept running against
+# replaced libraries — the listener then resets every new connection
+# (kex_exchange_identification: Connection reset by peer) and the node loses SSH
+# with no supervisor to recover. void's openssh package ships /etc/sv/sshd whose
+# run script does `ssh-keygen -A` (host keys are stripped in Step 13) then
+# `exec sshd -D`, so runsvdir keeps it in the foreground and respawns it.
+# sshd also needs to be up before cloud-init finishes, and runsvdir starts it in
+# parallel with the openrc service — no dependency on the cloud-init chain.
+rm -f "$ROOTFS/etc/init.d/sshd"
+mkdir -p "$ROOTFS/etc/runit/runsvdir/default"
+ln -sf /etc/sv/sshd "$ROOTFS/etc/runit/runsvdir/default/sshd"
 
 # default: rsyslog
 ln -sf "/etc/init.d/rsyslogd" "$ROOTFS/etc/runlevels/default/rsyslogd" 2>/dev/null || true

@@ -26,23 +26,33 @@ conflicts with containerd's resource isolation. Void solves this cleanly:
 
 ## Init architecture
 
-runit is Void's native PID 1 but in these images it acts purely as a bootloader:
+runit is Void's native PID 1. It supervises exactly two services: the OpenRC
+driver, and sshd (which must never daemonize — see the note below):
 
 ```
 runit (PID 1)
   stage 1 — mounts /proc, /sys, sets up the environment
   stage 2 — runsvdir /var/service/
-               └─ openrc (only runit-supervised service)
-                    ├─ openrc sysinit  →  devfs, dmesg, sysfs
-                    ├─ openrc boot     →  dhcpcd, cloud-init chain, chronyd, sshd
-                    └─ openrc default  →  rsyslogd, k3s (when installed)
+               ├─ openrc (drives everything below)
+               │    ├─ openrc sysinit  →  devfs, dmesg, sysfs
+               │    ├─ openrc boot     →  dhcpcd, cloud-init chain, chronyd
+               │    └─ openrc default  →  rsyslogd, k3s (when installed)
+               └─ sshd (foreground, respawned, logs via vlogger)
   stage 3 — openrc shutdown → system halt
 ```
 
-**runit does not manage any application services directly.** It hands off to
-OpenRC as soon as stage 2 starts. All services — networking, cloud-init,
-SSH, NTP, and k3s — are OpenRC services managed with the standard
-`rc-service` / `rc-update` commands.
+**sshd is supervised by runit, not OpenRC** — deliberately. openssh ships
+`/etc/sv/sshd`, whose `run` script regenerates missing host keys and then
+`exec sshd -D`. Wrapping that in an OpenRC init script instead means the binary
+daemonizes: OpenRC loses the PID (`rc-status` reports `stopped` while sshd is
+running), nothing respawns it if it crashes, and upgrading openssh leaves the old
+daemon alive against replaced libraries — new connections get
+`kex_exchange_identification: Connection reset by peer` and the node is
+unreachable with no supervisor to fall back on. With runsvdir, a crash or an
+upgrade is just a respawn.
+
+Everything else (networking, cloud-init, NTP, k3s) is an OpenRC service managed
+with the standard `rc-service` / `rc-update` commands.
 
 This matters because:
 - cloud-init's OpenRC init scripts call `rc-service` to start/stop services
@@ -50,6 +60,24 @@ This matters because:
 - k3s ships an OpenRC init script and registers itself with `rc-update`; on a
   pure runit system this would silently do nothing
 - operators familiar with Alpine or Gentoo can manage services the same way
+
+### Migrating a running instance (images built before this change)
+
+Images built before sshd moved to runit have `/etc/init.d/sshd` plus a
+`/etc/runlevels/boot/sshd` symlink, and no `/etc/runit/runsvdir/default/sshd`.
+Patch a live node with:
+
+```sh
+sudo rm -f /etc/init.d/sshd /etc/runlevels/boot/sshd
+sudo ln -sfn /etc/sv/sshd /etc/runit/runsvdir/default/sshd
+sudo ln -sfn /etc/sv/sshd /var/service/sshd          # current run, no reboot
+sudo pkill -f 'sshd: /usr/bin/sshd' || true          # drop the unsupervised daemon
+sleep 2 && sudo sv status sshd                       # expect: run: sshd (pid N)
+```
+
+Verify with `sv status sshd` (supervised) and `sudo ss -lntp | grep :22` (the
+listener PID must match the one runsv reports). If SSH is already gone, reach the
+node through a privileged pod with `hostPath: /` mounted and `chroot /host`.
 
 Generates bootable images for x86_64 and aarch64 with:
 - Void Linux (runit as PID 1) + OpenRC layered on top
