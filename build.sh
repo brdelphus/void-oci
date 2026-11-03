@@ -312,6 +312,13 @@ install -m 644 "$VOID_OCI_DIR/files/grub" "$ROOTFS/etc/default/grub"
 # dracut — bake cgroup_no_v1=all into initramfs cmdline
 mkdir -p "$ROOTFS/etc/dracut.conf.d"
 echo 'kernel_cmdline+=" cgroup_no_v1=all"' > "$ROOTFS/etc/dracut.conf.d/20-cgroup.conf"
+# virtio stack must always land in the initramfs. dracut resolves deps against
+# the RUNNING kernel, so a cross-version rebuild can omit drivers that became
+# modules in the new branch (7.2.15 moved virtio_net to drivers/net/virtio_net.ko
+# and left it out of the initramfs). Nodes that add a kernel later inherit this
+# file, so the next upgrade cannot produce a boot without virtio.
+install -m 644 "$VOID_OCI_DIR/files/dracut-virtio.conf" \
+    "$ROOTFS/etc/dracut.conf.d/10-virtio-cloud.conf"
 
 # Ensure virtio_net is loaded by the modules service before dhcpcd starts.
 # OpenRC's modules service reads /etc/modules-load.d/ (not /etc/modules).
