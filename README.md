@@ -230,8 +230,8 @@ replaces that file with the image's `/opt/k3s`, so any local pin is silently und
 
 | Arch | Kernel | k3s | containerd | Where / when |
 |---|---|---|---|---|
+| aarch64 | 7.2.15_1 | v1.37.2+k3s1 | 2.3.7-k3s1 | Ready in QEMU (`-M virt`, emulated, ~2 min to the prompt) — build 2026-11-04: sshd under runit, `/etc/init.d/sshd` absent, k3s node Ready |
 | aarch64 | 7.2.15_1 | v1.37.1+k3s1 | 2.3.4-k3s1 | 4-node production cluster `k3s-v3` (OCI A1 Flex, sa-saopaulo-1) — 2026-11-04 |
-| aarch64 | 7.2.15_1 | — | — | SSH verified on OCI A1 Flex (sa-saopaulo-1) |
 | x86_64 | 7.2.15_1 | v1.37.2+k3s1 | 2.3.7-k3s1 | Ready in QEMU (KVM, OVMF, cloud-init disabled) — image build of 2026-11-04: kernel 7.2.15_1 booted, sshd supervised by runit (pid alive, `/etc/init.d/sshd` absent), k3s node Ready |
 
 ## What gets built
