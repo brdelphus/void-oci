@@ -197,6 +197,32 @@ k3s detects OpenRC and installs its init script to `/etc/init.d/k3s`, enables it
 in the default runlevel, and starts it immediately. The node goes Ready within
 ~15s on x86_64 (longer on emulated aarch64).
 
+### Upgrading k3s on these nodes
+
+This image only provides the ground k3s stands on: the binary itself is installed by
+`get.k3s.io` at `/usr/local/bin/k3s` and is never a package (`xbps` does not manage it). Fleet
+upgrades are driven from the cluster repo
+[`K3s-void-v3`](https://github.com/brdelphus/K3s-void-v3) through the
+system-upgrade-controller, using the public image
+`ghcr.io/brdelphus/k3s-upgrade-void:v<version>-k3s1` (see that repo's "Upgrade image (GHCR)"
+section for tags, build cadence and the no-chain rule).
+
+Three things on the OS side make that work — break any of them and the upgrade either does
+nothing or writes to the wrong filesystem:
+
+1. **k3s under a supervisor that respawns it.** The upgrade script SIGTERMs k3s; here the OpenRC
+   service under runit brings it back. If it does not come back, the script falls back to
+   `rc-service k3s restart` and reports failure.
+2. **The real host root reachable at `/host`.** The upgrade pod mounts `/` as a hostPath; on some
+   nodes it silently gets an overlay of the *container* rootfs instead, so the "new" binary lands
+   in the container and the node never changes. `upgrade.sh` aborts unless `/host/etc/os-release`
+   really says Void Linux.
+3. **`curl` + `ca-certificates` present** — the binary fallback downloads from GitHub when the
+   controller did not stage `/opt/k3s`. Both are already in `COMMON_PKGS` of `build.sh`.
+
+Never pin k3s by installing a package or hand-editing `/usr/local/bin/k3s`: the next plan run
+replaces that file with the image's `/opt/k3s`, so any local pin is silently undone.
+
 ### Verified
 
 | Arch | Kernel | k3s | containerd | Result |
