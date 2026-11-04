@@ -225,19 +225,19 @@ replaces that file with the image's `/opt/k3s`, so any local pin is silently und
 
 ### Verified
 
-| Arch | Kernel | k3s | containerd | Result |
+| Arch | Kernel | k3s | containerd | Where / when |
 |---|---|---|---|---|
-| x86_64 | 6.18.35_1 | v1.35.5+k3s1 | 2.2.3-k3s1 | Ready (QEMU) |
-| aarch64 | 6.12.93_1 | v1.35.5+k3s1 | 2.2.3-k3s1 | Ready (QEMU) |
-| aarch64 | 6.12.93_1 | — | — | SSH verified on OCI A1 Flex (sa-saopaulo-1) |
+| aarch64 | 7.2.15_1 | v1.37.1+k3s1 | 2.3.4-k3s1 | 4-node production cluster `k3s-v3` (OCI A1 Flex, sa-saopaulo-1) — 2026-11-04 |
+| aarch64 | 7.2.15_1 | — | — | SSH verified on OCI A1 Flex (sa-saopaulo-1) |
+| x86_64 | 6.18.35_1 | v1.35.5+k3s1 | 2.2.3-k3s1 | Ready in QEMU — image build of 2026-09-18, **not re-tested** since the `linux7.2` / runit-sshd / dracut-virtio changes |
 
 ## What gets built
 
 | Component | Detail |
 |---|---|
 | Base | Void Linux ROOTFS 20250202 |
-| Kernel (x86_64) | `linux` meta-package (current stable) + linux6.6 LTS fallback |
-| Kernel (aarch64) | `linux` meta-package (current stable) + linux6.6 LTS fallback |
+| Kernel (x86_64) | `linux7.2` (pinned 7.x series) + `linux6.6` LTS as GRUB fallback |
+| Kernel (aarch64) | `linux7.2` (pinned 7.x series) + `linux6.6` LTS as GRUB fallback |
 | Bootloader | GRUB EFI (removable) |
 | Init | runit (PID 1) → OpenRC (services) |
 | Network | dhcpcd on eth0 |
@@ -245,7 +245,7 @@ replaces that file with the image's `/opt/k3s`, so any local pin is silently und
 | OCI agent | oracle-cloud-agent 1.59.0-12 *(oracle builds only)* |
 | Default user | `void` (UID 1000, wheel) |
 | Passwords | `void` / `root` → `voidlinux` (change on first login) |
-| SSH | cloud-init injects SSH key on first boot via OCI IMDS (bootcmd fallback + Oracle datasource); password auth always available as fallback (`sshd_config.d/00-void-oci.conf`); sshd in boot runlevel |
+| SSH | cloud-init injects SSH key on first boot via OCI IMDS (bootcmd fallback + Oracle datasource); password auth always available as fallback (`sshd_config.d/00-void-oci.conf`); sshd runs under **runit** (`/etc/runit/runsvdir/default/sshd`), not the OpenRC script |
 
 ## Disk layout
 
