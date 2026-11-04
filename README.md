@@ -132,14 +132,17 @@ The images use GRUB-EFI (GPT disk, no BIOS boot partition). SeaBIOS cannot boot
 them — OVMF is required (`xbps-install edk2-ovmf`).
 
 **Prerequisite: disable cloud-init** — without an IMDS endpoint at 169.254.169.254
-the Oracle datasource hangs during the boot runlevel, so sshd never starts. Add
-`cloud-init=disabled` to the GRUB cmdline before booting:
+the Oracle datasource hangs during the boot runlevel, so sshd never starts. Patch a **copy** of
+the image (keeps the artifact pristine) and add `cloud-init=disabled` to the GRUB cmdline:
 
 ```sh
-sudo qemu-nbd --connect=/dev/nbd0 void-oracle-x86_64.qcow2
+cp void-oracle-x86_64.qcow2 /var/tmp/void-test.qcow2
+sudo qemu-nbd --connect=/dev/nbd0 /var/tmp/void-test.qcow2
 sudo partx -u /dev/nbd0
 sudo mount /dev/nbd0p2 /mnt
-sudo sed -i 's| console=tty0| cloud-init=disabled console=tty0|g' /mnt/boot/grub/grub.cfg
+# anchor on cgroup_no_v1=all: the cmdline no longer contains console=tty0
+sudo sed -i 's|cgroup_no_v1=all|cloud-init=disabled cgroup_no_v1=all|g' /mnt/boot/grub/grub.cfg
+grep -c 'cloud-init=disabled' /mnt/boot/grub/grub.cfg   # expect 3 (default + 2 advanced entries)
 sudo umount /mnt && sudo qemu-nbd --disconnect /dev/nbd0
 ```
 
@@ -229,7 +232,7 @@ replaces that file with the image's `/opt/k3s`, so any local pin is silently und
 |---|---|---|---|---|
 | aarch64 | 7.2.15_1 | v1.37.1+k3s1 | 2.3.4-k3s1 | 4-node production cluster `k3s-v3` (OCI A1 Flex, sa-saopaulo-1) — 2026-11-04 |
 | aarch64 | 7.2.15_1 | — | — | SSH verified on OCI A1 Flex (sa-saopaulo-1) |
-| x86_64 | 6.18.35_1 | v1.35.5+k3s1 | 2.2.3-k3s1 | Ready in QEMU — image build of 2026-09-18, **not re-tested** since the `linux7.2` / runit-sshd / dracut-virtio changes |
+| x86_64 | 7.2.15_1 | v1.37.2+k3s1 | 2.3.7-k3s1 | Ready in QEMU (KVM, OVMF, cloud-init disabled) — image build of 2026-11-04: kernel 7.2.15_1 booted, sshd supervised by runit (pid alive, `/etc/init.d/sshd` absent), k3s node Ready |
 
 ## What gets built
 
